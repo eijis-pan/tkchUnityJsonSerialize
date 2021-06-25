@@ -1,5 +1,4 @@
 # tkchUnityJsonSerialize
-====
 
 UnityのComponent（今のところ Transform と Cloth）プロパティを json 形式で表示するエディタ拡張です。  
 

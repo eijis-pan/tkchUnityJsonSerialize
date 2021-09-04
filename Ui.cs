@@ -8,7 +8,8 @@ using UnityEditor;
 namespace tkchJsonSerialize
 {
 	/// <summary>
-	/// エディター拡張ウィンドウ
+	/// エディター拡張ウィンドウ（dump、resotreをそれぞれ１つだけ管理）
+	/// Component 用
 	/// </summary>
 	public class PopupJsonWindow : EditorWindow
 	{
@@ -459,6 +460,416 @@ namespace tkchJsonSerialize
 					}
 				}
 			}
+		}
+	}
+	
+	/// <summary>
+	/// エディター拡張ウィンドウ（dumpのみ）
+	/// World用
+	/// </summary>
+	public class DumpJsonWindow : EditorWindow
+	{
+		private static DumpJsonWindow _singleWindow;
+			
+		private const float ButtonHeight = 30f;
+		private const int TextPadding = 5;
+		
+		private Vector2 _scroll;
+		private bool _firstFocused = false;
+		private string _text = string.Empty;
+		private string _defaultText = string.Empty;
+		private string _readableText = null;
+		private object _jsonObject = null;
+		private List<HelpBoxInfo> _helpBoxInfos = new List<HelpBoxInfo>(3);
+
+		private bool _readableFormatting = false;
+		
+		/// <summary>
+		/// dump ウィンドウを表示
+		/// </summary>
+		/// <param name="component"></param>
+		public static void ShowDumpWindow(string jsonText)
+		{
+			var window = GetWindow(new GUIContent("json dump"));
+			window._text = window._defaultText = jsonText;
+			window.ShowUtility();
+		}
+		
+		private static DumpJsonWindow GetWindow(GUIContent editorTitle)
+		{
+			var window = DumpJsonWindow._singleWindow;
+			if (null == window)
+			{
+				window = (DumpJsonWindow)ScriptableObject.CreateInstance<DumpJsonWindow>();
+				DumpJsonWindow._singleWindow = window;
+			}
+
+			window.titleContent = editorTitle;
+			window._firstFocused = false;
+			window.Focus();
+			return window;
+		}
+		
+		private class HelpBoxInfo
+		{
+			public string message;
+			public MessageType messageType;
+			public bool wide;
+
+			public HelpBoxInfo(string message, MessageType messageType, bool wide)
+			{
+				this.message = message;
+				this.messageType = messageType;
+				this.wide = wide;
+			}
+		}
+		
+		private void OnGUI()
+		{
+			EditorGUILayout.Space();
+			
+			// dump 画面の Copy ボタン、Close ボタンと メッセージ領域
+			using (new EditorGUILayout.HorizontalScope())
+			{
+				using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text)))
+				{
+					if (GUILayout.Button("Copy to clipboard",GUILayout.Height(ButtonHeight)))
+					{
+						GUIUtility.systemCopyBuffer = _text;
+						_helpBoxInfos.Add(new HelpBoxInfo("copied to clipboard.", MessageType.Info, true));
+					}
+				}
+				
+				if (GUILayout.Button("Close",GUILayout.Height(ButtonHeight)))
+				{
+					Close();
+				}
+			}
+			foreach (var helpBoxInfo in _helpBoxInfos)
+			{
+				EditorGUILayout.HelpBox(helpBoxInfo.message, helpBoxInfo.messageType, helpBoxInfo.wide);
+			}
+
+			if (GUILayout.Toggle(_readableFormatting, "Readable formatting"))
+			{
+				_readableFormatting = true;
+				if (ReferenceEquals(_readableText, null))
+				{
+					_readableText = Utility.ReadableFormattedString(_defaultText);
+					_helpBoxInfos.Clear();
+				}
+				_text = _readableText;
+			}
+			else
+			{
+				_readableFormatting = false;
+				if (!ReferenceEquals(_defaultText, _text))
+				{
+					_text = _defaultText;
+					_helpBoxInfos.Clear();
+				}
+			}
+			
+			using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
+			{
+				RectOffset textPaddingRect = new RectOffset(TextPadding, TextPadding, TextPadding, TextPadding);
+				using (var scrollView = new EditorGUILayout.ScrollViewScope(_scroll))
+				{
+					_scroll = scrollView.scrollPosition;
+
+					GUI.SetNextControlName("TextField");
+					using (var scope = new EditorGUI.ChangeCheckScope())
+					{
+						var guiStyle = GUI.skin.textArea;
+						guiStyle.padding = textPaddingRect;
+						guiStyle.wordWrap = true;
+						_text = EditorGUILayout.TextArea(_text, guiStyle, GUILayout.ExpandHeight(true));
+					}
+				}
+			}
+
+			if (!_firstFocused)
+			{
+				_firstFocused = true;
+				//GUI.FocusControl("ComponentType");
+				GUI.FocusControl("TextField");
+			}
+		}
+	}
+	
+	/// <summary>
+	/// エディター拡張ウィンドウ（resotreのみ）
+	/// World用
+	/// </summary>
+	public class RestoreJsonWindow : EditorWindow
+	{
+		private static RestoreJsonWindow _singleWindow;
+		
+		private const float LabelWidth = 100f;
+		private const float ButtonHeight = 30f;
+		private const int TextPadding = 5;
+		
+		private Func<string, JsonRoot> _jsonAction = null;
+		private Action<JsonRoot> _restoreAction = null;
+		private bool _errorOnCheck = false;
+		private Vector2 _scroll;
+		private bool _firstFocused = false;
+		private string _text = string.Empty;
+		private string _defaultText = string.Empty;
+		private JsonRoot _jsonObject = null;
+		private List<HelpBoxInfo> _helpBoxInfos = new List<HelpBoxInfo>(3);
+		
+		private bool _defaultStateChange = false;
+		//private bool _needDelayUpdate = false;
+		private const float UpdateDelay = 0.01f;
+		private float _lastEditorUpdateTime = float.NaN;
+
+		private Dictionary<CheckResult.ResultType, MessageType> CheckResultTypeToMessageType
+			= new Dictionary<CheckResult.ResultType, MessageType>()
+			{
+				{CheckResult.ResultType.Info, MessageType.Info},
+				{CheckResult.ResultType.Warning, MessageType.Warning},
+				{CheckResult.ResultType.Error, MessageType.Error}
+			};
+
+		/// <summary>
+		/// restore ウィンドウを表示
+		/// </summary>
+		/// <param name="component"></param>
+		/// <param name="callback"></param>
+		public static void ShowRestoreWindow( 
+			string defaultText,
+			Func<string, JsonRoot> jsonCallback,
+			Action<JsonRoot> restoreCallback 
+			)
+		{
+			var window = GetWindow(new GUIContent("json restore"));
+			window._text = window._defaultText = defaultText;
+			window._defaultStateChange = !string.IsNullOrEmpty(defaultText);
+			window._jsonAction = jsonCallback;
+			window._restoreAction = restoreCallback;
+			window.ShowUtility();
+		}
+		
+		private static RestoreJsonWindow GetWindow(GUIContent editorTitle)
+		{
+			var window = RestoreJsonWindow._singleWindow;
+			if (null == window)
+			{
+				window = (RestoreJsonWindow)ScriptableObject.CreateInstance<RestoreJsonWindow>();
+				RestoreJsonWindow._singleWindow = window;
+			}
+
+			window.titleContent = editorTitle;
+			window._firstFocused = false;
+			window.Focus();
+			return window;
+		}
+		
+		private class HelpBoxInfo
+		{
+			public string message;
+			public MessageType messageType;
+			public bool wide;
+
+			public HelpBoxInfo(string message, MessageType messageType, bool wide)
+			{
+				this.message = message;
+				this.messageType = messageType;
+				this.wide = wide;
+			}
+		}
+		
+		private void OnGUI()
+		{
+			EditorGUILayout.Space();
+			
+			bool restored = false;
+			Exception exception = null;
+
+			using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
+			{
+				RectOffset textPaddingRect = new RectOffset(TextPadding, TextPadding, TextPadding, TextPadding);
+				using (var scrollView = new EditorGUILayout.ScrollViewScope(_scroll))
+				{
+					_scroll = scrollView.scrollPosition;
+					
+					GUI.SetNextControlName("TextField");
+					using (var scope = new EditorGUI.ChangeCheckScope())
+					{
+						var guiStyle = GUI.skin.textArea;
+						guiStyle.padding = textPaddingRect;
+						guiStyle.wordWrap = true;
+						_text = EditorGUILayout.TextArea(_text, guiStyle,GUILayout.ExpandHeight(true));
+						if (scope.changed || _defaultStateChange)
+						{
+							_defaultStateChange = false;
+							if (!string.IsNullOrEmpty(_text))
+							{
+								bool jsonError = false;
+								_helpBoxInfos.Clear();
+								_jsonObject = null;
+								_errorOnCheck = false;
+								try
+								{
+									_jsonObject = _jsonAction(_text);
+								}
+								catch (NotImplementedException ex)
+								{
+									jsonError = true;
+									_helpBoxInfos.Add(new HelpBoxInfo("Not implement component type.", MessageType.Error, true));
+									//Debug.Log(string.Format("Invalid json format.   {0}", ex));
+								}
+								catch (Exception ex)
+								{
+									jsonError = true;
+									_helpBoxInfos.Add(new HelpBoxInfo("Invalid json format.", MessageType.Error, true));
+									//Debug.Log(string.Format("Invalid json format.   {0}", ex));
+								}
+								
+								if (!jsonError)
+								{
+									if (null == _jsonObject)
+									{
+										jsonError = true;
+										_helpBoxInfos.Add(new HelpBoxInfo("Empty json object.", MessageType.Error, true));
+									}
+									else
+									{
+										/*
+										// 参照の見つからないものがあれば警告を表示する
+										if (_jsonObject.IsReferenceNotFound)
+										{
+											_helpBoxInfos.Add(new HelpBoxInfo("Reference not found.", MessageType.Warning, true));
+										}
+										
+										// インスペクタのリロード（再表示が必要か）
+										if (_jsonObject.NeedInspectorReload)
+										{
+											// 今のところ Cloth のエディタに更新が必要なケースのみ
+											_needDelayUpdate = true;
+										}
+										else
+										{
+											_needDelayUpdate = false;
+										}
+
+										// その他の整合成チェック
+										var checkResults = _jsonObject.AfterCheckFromJson(_component);
+										foreach (var checkResult in checkResults)
+										{
+											_helpBoxInfos.Add(new HelpBoxInfo(
+												string.Format("{0} Item=[ {1} ]", checkResult.Message, checkResult.ItemName), 
+												CheckResultTypeToMessageType[checkResult.Type], true));
+
+											if (CheckResult.ResultType.Error == checkResult.Type)
+											{
+												_errorOnCheck = true;
+											}
+										}
+										*/
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if (string.IsNullOrEmpty(_text))
+				{
+					EditorGUILayout.HelpBox("please input json text.", MessageType.Info, true);
+				}
+				else
+				{
+					foreach (var helpBoxInfo in _helpBoxInfos)
+					{
+						EditorGUILayout.HelpBox(helpBoxInfo.message, helpBoxInfo.messageType, helpBoxInfo.wide);
+					}
+				}
+
+				using (new EditorGUILayout.HorizontalScope())
+				{
+					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) || ReferenceEquals(_jsonObject, null) || _errorOnCheck))
+					{
+						if (GUILayout.Button("Restore",GUILayout.Height(ButtonHeight)))
+						{
+							_helpBoxInfos.Clear();
+								
+							int dlgRet = EditorUtility.DisplayDialogComplex (
+								"json restore",
+								"Hierarchy objects will override. are you sure ?",
+								"Go", // 0 ok
+								"Cancel", // 1 cancel
+								null
+							);
+							if (0 == dlgRet)
+							{
+								restored = true;
+								try
+								{
+									_restoreAction(_jsonObject);
+								}
+								catch (Exception ex)
+								{
+									exception = ex;
+								}
+							}
+						}
+					}
+					if (GUILayout.Button("Close",GUILayout.Height(ButtonHeight)))
+					{
+						Close();
+					}
+				}
+				
+				EditorGUILayout.Space();
+			}
+			
+			if (restored)
+			{
+				if (null == exception)
+				{
+					EditorUtility.DisplayDialog ("json restore", "restore complete.", "OK");
+				}
+				else if (0 < _helpBoxInfos.Count)
+				{
+					EditorUtility.DisplayDialog ("json restore", "restore finish with warning.", "OK");
+				}
+				else
+				{
+					EditorUtility.DisplayDialog ("json restore", "restore failed. \n \n" + exception.ToString(), "OK");
+				}
+
+				/*
+				if (_needDelayUpdate)
+				{
+					// Inspector を更新
+					Selection.activeObject = null; // 一旦選択解除させる
+					_lastEditorUpdateTime = Time.time;
+				}
+				*/
+			}
+			
+			if (!_firstFocused)
+			{
+				_firstFocused = true;
+				//GUI.FocusControl("ComponentType");
+				GUI.FocusControl("TextField");
+			}
+
+			/*
+			if (_needDelayUpdate)
+			{
+				if (!float.IsNaN(_lastEditorUpdateTime))
+				{
+					if (_lastEditorUpdateTime + UpdateDelay < Time.time)
+					{
+						_lastEditorUpdateTime = float.NaN;
+						Selection.activeObject = _component;
+					}
+				}
+			}
+			*/
 		}
 	}
 }

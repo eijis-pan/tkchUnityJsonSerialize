@@ -14,6 +14,7 @@ namespace tkchJsonSerialize
 	public class JsonCloth : JsonComponentBase
 	{
 		private Cloth _targetComponent;
+		public override Type ComponentType => typeof(Cloth);
 		
 		public override float Version => 1.0f;
 		//public override Type ComponentType => _targetComponent.GetType();

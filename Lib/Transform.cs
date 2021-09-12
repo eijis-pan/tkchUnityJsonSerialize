@@ -7,6 +7,7 @@ namespace tkchJsonSerialize
 	public class JsonTransform : JsonComponentBase
 	{
 		private Transform _targetComponent;
+		public override Type ComponentType => typeof(Transform);
 		
 		public override float Version => 1.0f;
 		//public override Type ComponentType => _targetComponent.GetType();
@@ -85,12 +86,27 @@ namespace tkchJsonSerialize
 				throw new ArgumentException();
 			}
 			var transform = (Transform) component;
-			
-			transform.forward = forward.value;
-			transform.position = position.value;
-			transform.right = right.value;
-			transform.rotation = rotation.value;
-			transform.up = up.value;
+
+			if (!ReferenceEquals(forward, null))
+			{
+				transform.forward = forward.value;
+			}
+			if (!ReferenceEquals(position, null))
+			{
+				transform.position = position.value;
+			}
+			if (!ReferenceEquals(right, null))
+			{
+				transform.right = right.value;
+			}
+			if (!ReferenceEquals(rotation, null))
+			{
+				transform.rotation = rotation.value;
+			}
+			if (!ReferenceEquals(up, null))
+			{
+				transform.up = up.value;
+			}
 		}
 	}
 }

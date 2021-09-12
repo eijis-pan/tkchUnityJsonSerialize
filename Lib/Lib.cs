@@ -227,7 +227,7 @@ namespace tkchJsonSerialize
 		
 		public JsonCapsuleColliderReference(CapsuleCollider cc)
 		{
-			if (null != cc)
+			if (!ReferenceEquals(cc, null))
 			{
 				reference = new JsonReference(cc);
 				_cc = cc;
@@ -281,7 +281,7 @@ namespace tkchJsonSerialize
 		
 		public JsonSphereColliderReference(SphereCollider sc)
 		{
-			if (null != sc)
+			if (!ReferenceEquals(sc, null))
 			{
 				reference = new JsonReference(sc);
 				_sc = sc;

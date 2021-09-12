@@ -73,10 +73,26 @@ namespace tkchJsonSerialize
 	[Serializable]
 	public class JsonComponentBase : ISerializationCallbackReceiver // IJsonSerializable<Component>
 	{
+		[NonSerialized]
+		static public readonly Type[] ImplementedComponentTypes =
+		{
+			typeof(Transform),
+			typeof(Cloth)
+		};
+		
+		[NonSerialized]
+		static public readonly Type[] ImplementedJsonObjectTypes =
+		{
+			typeof(JsonTransform),
+			typeof(JsonCloth)
+		};
+		
 		public virtual float Version => throw new NotImplementedException();
 		//public virtual Type ComponentType => throw new NotImplementedException();
 		//public float __component_json_dump_version__;
 		public string __json_dump_timestamp__;
+
+		public virtual Type ComponentType => typeof(Component);
 		
 		public virtual void OnBeforeSerialize()
 		{

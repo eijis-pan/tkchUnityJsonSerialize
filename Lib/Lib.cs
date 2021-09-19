@@ -3,9 +3,41 @@ using System;
 using System.Reflection;
 using System.Text;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace tkchJsonSerialize
 {
+	[Serializable]
+	public class JsonVector2 : ISerializationCallbackReceiver
+	{
+		private Vector2 v;
+
+		public float x;
+		public float y;
+
+		public JsonVector2(Vector2 v)
+		{
+			this.v = v;
+			this.x = v.x;
+			this.y = v.y;
+		}
+
+		public Vector2 value
+		{
+			get { return v; }
+		}
+
+		public void OnBeforeSerialize()
+		{
+			// nop
+		}
+
+		public void OnAfterDeserialize()
+		{
+			v = new Vector2(x, y);
+		}
+	}
+	
 	[Serializable]
 	public class JsonVector3 : ISerializationCallbackReceiver
 	{
@@ -411,6 +443,295 @@ namespace tkchJsonSerialize
 			csc = new ClothSkinningCoefficient();
 			csc.maxDistance = maxDistance;
 			csc.collisionSphereDistance = collisionSphereDistance;
+		}
+	}
+
+	[Serializable]
+	public class JsonBoneWeight : ISerializationCallbackReceiver
+	{
+		private BoneWeight b;
+
+		public float weight0;
+		public float weight1;
+		public float weight2;
+		public float weight3;
+		public int boneIndex0;
+		public int boneIndex1;
+		public int boneIndex2;
+		public int boneIndex3;
+		
+		public JsonBoneWeight(BoneWeight b)
+		{
+			this.b = b;
+
+			this.weight0 = b.weight0;
+			this.weight1 = b.weight1;
+			this.weight2 = b.weight2;
+			this.weight3 = b.weight3;
+			this.boneIndex0 = b.boneIndex0;
+			this.boneIndex1 = b.boneIndex1;
+			this.boneIndex2 = b.boneIndex2;
+			this.boneIndex3 = b.boneIndex3;
+		}
+
+		public BoneWeight value
+		{
+			get { return b;  }
+		}
+		
+		public void OnBeforeSerialize ()
+		{
+			// nop
+		}
+	
+		public void OnAfterDeserialize ()
+		{
+			b = new BoneWeight();
+			b.weight0 = this.weight0;
+			b.weight1 = this.weight1;
+			b.weight2 = this.weight2;
+			b.weight3 = this.weight3;
+			b.boneIndex0 = this.boneIndex0;
+			b.boneIndex1 = this.boneIndex1;
+			b.boneIndex2 = this.boneIndex2;
+			b.boneIndex3 = this.boneIndex3;
+		}
+	}
+
+	[Serializable]
+	public class JsonBounds : ISerializationCallbackReceiver
+	{
+		private Bounds b;
+
+		public JsonVector3 center;
+		public JsonVector3 extents;
+		public JsonVector3 max;
+		public JsonVector3 min;
+		public JsonVector3 size;
+		
+		public JsonBounds(Bounds b)
+		{
+			this.b = b;
+
+			this.center = new JsonVector3(b.center);
+			this.extents = new JsonVector3(b.extents);
+			this.max = new JsonVector3(b.max);
+			this.min = new JsonVector3(b.min);
+			this.size = new JsonVector3(b.size);
+		}
+		
+		public Bounds value
+		{
+			get { return b;  }
+		}
+		
+		public void OnBeforeSerialize ()
+		{
+			// nop
+		}
+	
+		public void OnAfterDeserialize ()
+		{
+			b = new Bounds();
+			b.center = center.value;
+			b.extents = extents.value;
+			b.max = max.value;
+			b.min = min.value;
+			b.size = size.value;
+		}
+	}
+	
+	[Serializable]
+	public class JsonMesh : ISerializationCallbackReceiver
+	{
+		private Mesh m;
+
+		public JsonMatrix4x4[] bindposes;
+		public JsonBounds bounds;
+		public Color[] colors;
+		public Color32[] colors32;
+		public JsonVector3[] normals;
+		public JsonVector4[] tangents;
+		public int[] triangles;
+		public JsonVector2[] uv;
+		public JsonVector2[] uv2;
+		public JsonVector2[] uv3;
+		public JsonVector2[] uv4;
+		public JsonVector2[] uv5;
+		public JsonVector2[] uv6;
+		public JsonVector2[] uv7;
+		public JsonVector2[] uv8;
+		public JsonVector3[] vertices;
+		public JsonBoneWeight[] boneWeights;
+		public string indexFormat;
+		public int subMeshCount;
+		
+		public JsonMesh(Mesh m)
+		{
+			this.m = m;
+			
+			// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
+
+			this.bindposes = new JsonMatrix4x4[m.bindposes.Length];
+			for (var i = 0; i < this.bindposes.Length; i++)
+			{
+				this.bindposes[i] = new JsonMatrix4x4(m.bindposes[i]);
+			}
+			
+			this.bounds = new JsonBounds(m.bounds);
+			this.colors = m.colors;
+			this.colors32 = m.colors32;
+			
+			this.normals = new JsonVector3[m.normals.Length];
+			for (var i = 0; i < this.normals.Length; i++)
+			{
+				this.normals[i] = new JsonVector3(m.normals[i]);
+			}
+			
+			this.tangents = new JsonVector4[m.tangents.Length];
+			for (var i = 0; i < this.tangents.Length; i++)
+			{
+				this.tangents[i] = new JsonVector4(m.tangents[i]);
+			}
+			
+			this.triangles = new int[m.triangles.Length];
+			Array.Copy(m.triangles, this.triangles, m.triangles.Length);
+			
+			this.uv = new JsonVector2[m.uv.Length];
+			for (var i = 0; i < this.uv.Length; i++)
+			{
+				this.uv[i] = new JsonVector2(m.uv[i]);
+			}
+			this.uv2 = new JsonVector2[m.uv2.Length];
+			for (var i = 0; i < this.uv2.Length; i++)
+			{
+				this.uv2[i] = new JsonVector2(m.uv2[i]);
+			}
+			this.uv3 = new JsonVector2[m.uv3.Length];
+			for (var i = 0; i < this.uv3.Length; i++)
+			{
+				this.uv3[i] = new JsonVector2(m.uv3[i]);
+			}
+			this.uv4 = new JsonVector2[m.uv4.Length];
+			for (var i = 0; i < this.uv4.Length; i++)
+			{
+				this.uv4[i] = new JsonVector2(m.uv4[i]);
+			}
+			this.uv5 = new JsonVector2[m.uv5.Length];
+			for (var i = 0; i < this.uv5.Length; i++)
+			{
+				this.uv5[i] = new JsonVector2(m.uv5[i]);
+			}
+			this.uv6 = new JsonVector2[m.uv6.Length];
+			for (var i = 0; i < this.uv6.Length; i++)
+			{
+				this.uv6[i] = new JsonVector2(m.uv6[i]);
+			}
+			this.uv7 = new JsonVector2[m.uv7.Length];
+			for (var i = 0; i < this.uv7.Length; i++)
+			{
+				this.uv7[i] = new JsonVector2(m.uv7[i]);
+			}
+			this.uv8 = new JsonVector2[m.uv8.Length];
+			for (var i = 0; i < this.uv8.Length; i++)
+			{
+				this.uv8[i] = new JsonVector2(m.uv8[i]);
+			}
+			
+			this.vertices = new JsonVector3[m.vertices.Length];
+			for (var i = 0; i < this.vertices.Length; i++)
+			{
+				this.vertices[i] = new JsonVector3(m.vertices[i]);
+			}
+
+			this.boneWeights = new JsonBoneWeight[m.boneWeights.Length];
+			for (var i = 0; i < this.boneWeights.Length; i++)
+			{
+				this.boneWeights[i] = new JsonBoneWeight(m.boneWeights[i]);
+			}
+
+			this.indexFormat = m.indexFormat.ToString();
+			this.subMeshCount = m.subMeshCount;
+		}
+		
+		public Mesh value
+		{
+			get { return m;  }
+		}
+		
+		public void OnBeforeSerialize ()
+		{
+			// nop
+		}
+	
+		public void OnAfterDeserialize ()
+		{
+			// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
+			// todo: 動的生成されたものであった場合、ここで復元が必要
+			m = new Mesh();
+		}
+	}
+
+	[Serializable]
+	public class JsonMaterial : ISerializationCallbackReceiver
+	{
+		private Material m;
+
+		public string name;
+		public string hideFlags;
+		
+		public Color color;
+		public string shaderName;
+		public bool enableInstancing;
+		public string mainTextureName;
+		
+		public JsonMaterial(Material m)
+		{
+			this.m = m;
+
+			this.name = m.name;
+			this.hideFlags = m.hideFlags.ToString();
+			
+			this.color = m.color;
+			
+			if (!ReferenceEquals(m.shader, null))
+			{
+				this.shaderName = m.shader.name;
+			}
+			else
+			{
+				this.shaderName = null;
+			}
+			
+			this.enableInstancing = m.enableInstancing;
+
+			if (!ReferenceEquals(m.mainTexture, null))
+			{
+				this.mainTextureName = m.mainTexture.name;
+			}
+			else
+			{
+				this.mainTextureName = null;
+			}
+		}
+		
+		public Material value
+		{
+			get { return m;  }
+		}
+		
+		public void OnBeforeSerialize ()
+		{
+			// nop
+		}
+	
+		public void OnAfterDeserialize ()
+		{
+			// 多分 実際の fbx への情報が必要
+			m = new Material(Shader.Find(this.shaderName));
+			
+			m.name = name;
+			m.hideFlags = (HideFlags)Enum.Parse(typeof(HideFlags), hideFlags);
 		}
 	}
 	

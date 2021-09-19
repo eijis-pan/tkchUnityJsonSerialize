@@ -1,8 +1,10 @@
 ﻿using System;
 using UnityEngine;
+using UnityEngine.Scripting;
 
 namespace tkchJsonSerialize
 {
+	[Preserve]
 	[Serializable]
 	public class JsonTransform : JsonComponentBase
 	{
@@ -44,7 +46,7 @@ namespace tkchJsonSerialize
 		//public JsonMatrix4x4 localToWorldMatrix;
 		//public JsonMatrix4x4 worldToLocalMatrix;
 	
-		protected internal JsonTransform(Component component) : base(component)
+		public JsonTransform(Component component) : base(component)
 		{
 			if (typeof(Transform) != component.GetType())
 			{

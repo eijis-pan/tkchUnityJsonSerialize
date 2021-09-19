@@ -1,20 +1,23 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace tkchJsonSerialize
 {
+	/*
 	public interface IJsonInstantiation // <T>
 	{
 		void Instantiation();
 		//void Instantiation(Scene sc);
 		//void Instantiation(GameObject parent);
 	}
+	*/
 	
 	[Serializable]
-	public class JsonRoot : ISerializationCallbackReceiver, IJsonInstantiation
+	public class JsonRoot : ISerializationCallbackReceiver //, IJsonInstantiation
 	{
 		public List<string> includedPaths = new List<string>();
 		public List<string> excludedPaths = new List<string>();
@@ -38,13 +41,13 @@ namespace tkchJsonSerialize
 			// nop
 		}
 
-		public void Instantiation()
+		public void JsonRestoreToSecne()
 		{
 			var scene = SceneManager.GetActiveScene();
 
 			foreach (var child in children)
 			{
-				var go = child.Instantiation();
+				var go = child.JsonRestoreObject();
 				SceneManager.MoveGameObjectToScene(go, scene);
 			}
 		}
@@ -58,20 +61,26 @@ namespace tkchJsonSerialize
 		
 		public string name;
 		public string path;
+		public string assetPath;
 		public List<JsonGameObject> children = new List<JsonGameObject>();
 		public List<JsonComponentType> componentTypes = new List<JsonComponentType>();
 		
 		public JsonGameObject(GameObject gameObject)
 		{
-			this.name = gameObject.name;
-			AddComponentTypes(gameObject);
+			init(gameObject);
 		}
 		
 		public JsonGameObject(GameObject gameObject, string path)
 		{
-			this.name = gameObject.name;
 			this.path = path;
+			init(gameObject);
+		}
+
+		protected void init(GameObject gameObject)
+		{
+			this.name = gameObject.name;
 			AddComponentTypes(gameObject);
+			SearchAssetPath(gameObject);
 		}
 
 		protected void AddComponentTypes(GameObject gameObject)
@@ -85,6 +94,14 @@ namespace tkchJsonSerialize
 			}
 		}
 		
+		protected void SearchAssetPath(GameObject gameObject)
+		{
+			var gameObjectId = PrefabUtility.GetPrefabParent(gameObject);
+			//var gameObjectId = gameObject.GetInstanceID();
+			var gameObjectAssetPath = AssetDatabase.GetAssetPath(gameObjectId);
+			this.assetPath = gameObjectAssetPath;
+		}
+
 		public void OnBeforeSerialize()
 		{
 			// if (7 <= this.depth)
@@ -103,8 +120,14 @@ namespace tkchJsonSerialize
 			// nop
 		}
 
-		public GameObject Instantiation()
+		public GameObject JsonRestoreObject()
 		{
+			string assetPath = this.assetPath;
+			if (!ReferenceEquals(children, null) && 0 < assetPath.Length)
+			{
+				return PrefabUtility.LoadPrefabContents(assetPath);
+			}
+
 			var go = new GameObject();
 			go.name = this.name;
 
@@ -112,7 +135,7 @@ namespace tkchJsonSerialize
 			{
 				foreach (var child in children)
 				{
-					var childGo = child.Instantiation();
+					var childGo = child.JsonRestoreObject();
 					childGo.transform.SetParent(go.transform);
 				}
 			}
@@ -121,9 +144,9 @@ namespace tkchJsonSerialize
 			{
 				foreach (var child in componentTypes)
 				{
-					foreach (var t in JsonComponentBase.ImplementedComponentTypes)
+					foreach (var componentType in JsonComponentBase.ImplementedTypePairsFromJson.Values)
 					{
-						if (t.Name != child.name)
+						if (componentType.Name != child.name)
 						{
 							continue;
 						}
@@ -131,13 +154,13 @@ namespace tkchJsonSerialize
 						Component c = null;
 						
 						// Transform は最初からある
-						if (t == typeof(Transform))
+						if (componentType == typeof(Transform))
 						{
 							c = go.GetComponent<Transform>();
 						}
 						else
 						{
-							c = go.AddComponent(t);							
+							c = go.AddComponent(componentType);							
 						}
 
 						JsonComponentBase jc = child.component;
@@ -167,6 +190,8 @@ namespace tkchJsonSerialize
 		// 配列にして、中身が（1つ）あれば該当。空だと対象外（そのクラスではない）
 		
 		public List<JsonTransform> transform;
+		public List<JsonMeshFilter> meshFilter;
+		public List<JsonMeshRenderer> meshRendere;
 		public List<JsonCloth> cloth;
 
 		private Dictionary<Type, object> _componentDict;
@@ -178,22 +203,28 @@ namespace tkchJsonSerialize
 			{
 				component = JsonComponentBase.CreateJsonComponent(t);
 			}
-			catch
+			catch (Exception ex)
 			{
-				
+				Debug.LogFormat("Custom Script Exception : {0}", ex.ToString());
 			}
-
-			transform = new List<JsonTransform>(1);
-			cloth = new List<JsonCloth>(1);
+			
+			transform = new List<JsonTransform>();
+			meshFilter = new List<JsonMeshFilter>();
+			meshRendere = new List<JsonMeshRenderer>();
+			cloth = new List<JsonCloth>();
 		}
 
 		private void initDict()
 		{
 			_componentDict = new Dictionary<Type, object>(
-				JsonComponentBase.ImplementedJsonObjectTypes.Length
+				JsonComponentBase.ImplementedTypePairsFromJson.Count
 			);
-			_componentDict[JsonComponentBase.ImplementedJsonObjectTypes[0]] = transform;
-			_componentDict[JsonComponentBase.ImplementedJsonObjectTypes[1]] = cloth;
+			var componentTypes = new Type[JsonComponentBase.ImplementedTypePairsFromJson.Count];
+			JsonComponentBase.ImplementedTypePairsFromJson.Values.CopyTo(componentTypes, 0);
+			_componentDict[componentTypes[0]] = transform;
+			_componentDict[componentTypes[1]] = meshFilter;
+			_componentDict[componentTypes[2]] = meshRendere;
+			_componentDict[componentTypes[3]] = cloth;
 		}
 		
 		public void OnBeforeSerialize()
@@ -201,14 +232,18 @@ namespace tkchJsonSerialize
 			// 全種類を網羅してゴリ押し
 			// 配列にして、中身が（1つ）あれば該当。空だと対象外（そのクラスではない）
 
+			initDict();
+			
 			if (!ReferenceEquals(component, null))
 			{
-				foreach (var t in JsonComponentBase.ImplementedJsonObjectTypes)
+				foreach (var typePair in JsonComponentBase.ImplementedTypePairsFromJson)
 				{
-					if (t == component.GetType())
+					var jsonType = typePair.Key;
+					var componentType = typePair.Value;
+					if (jsonType == component.GetType())
 					{
-						object o = _componentDict[t];
-						var list = ListTypeCheck(o, t);
+						object o = _componentDict[componentType];
+						var list = ListTypeCheck(o, jsonType);
 						if (!ReferenceEquals(list, null))
 						{
 							list.Add(component);
@@ -225,10 +260,12 @@ namespace tkchJsonSerialize
 
 			initDict();
 			
-			foreach(var t in JsonComponentBase.ImplementedJsonObjectTypes)
+			foreach (var typePair in JsonComponentBase.ImplementedTypePairsFromJson)
 			{
-				object o = _componentDict[t];
-				var list = ListTypeCheck(o, t);
+				var jsonType = typePair.Key;
+				var componentType = typePair.Value;
+				object o = _componentDict[componentType];
+				var list = ListTypeCheck(o, jsonType);
 				if (ReferenceEquals(list, null))
 				{
 					continue;

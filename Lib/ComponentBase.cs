@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace tkchJsonSerialize
@@ -74,17 +75,13 @@ namespace tkchJsonSerialize
 	public class JsonComponentBase : ISerializationCallbackReceiver // IJsonSerializable<Component>
 	{
 		[NonSerialized]
-		static public readonly Type[] ImplementedComponentTypes =
+		static public readonly Dictionary<Type, Type> ImplementedTypePairsFromJson =
+			new Dictionary<Type, Type>()
 		{
-			typeof(Transform),
-			typeof(Cloth)
-		};
-		
-		[NonSerialized]
-		static public readonly Type[] ImplementedJsonObjectTypes =
-		{
-			typeof(JsonTransform),
-			typeof(JsonCloth)
+			{ typeof(JsonTransform), typeof(Transform) },
+			{ typeof(JsonMeshFilter), typeof(MeshFilter) },
+			{ typeof(JsonMeshRenderer), typeof(MeshRenderer) },
+			{ typeof(JsonCloth), typeof(Cloth) }
 		};
 		
 		public virtual float Version => throw new NotImplementedException();
@@ -106,31 +103,33 @@ namespace tkchJsonSerialize
 		
 		public static JsonComponentBase CreateJsonComponent(Component component)
 		{
-			if (typeof(Transform) == component.GetType())
+			foreach (var typePair in JsonComponentBase.ImplementedTypePairsFromJson)
 			{
-				return new JsonTransform(component);
-			}	
-			if (typeof(Cloth) == component.GetType())
-			{
-				return new JsonCloth(component);
+				var jsonType = typePair.Key;
+				var componentType = typePair.Value;
+				if (componentType == component.GetType())
+				{
+					object result = jsonType.InvokeMember(null, System.Reflection.BindingFlags.CreateInstance, null, null, new object[] { component });
+					var jsonComponentBase = (JsonComponentBase) result;
+					return jsonComponentBase;
+				}
 			}
-
+			
 			throw new NotImplementedException();
 		}
 
 		public static JsonComponentBase FromJson(Component component, string jsonString)
 		{
-			//var jsonWrapper = JsonUtility.FromJson<JsonWrapper>(jsonString);
-			if (typeof(Transform) == component.GetType())
+			foreach (var typePair in JsonComponentBase.ImplementedTypePairsFromJson)
 			{
-				var jsonTransform = JsonUtility.FromJson<JsonTransform>(jsonString);
-				return jsonTransform;
+				Type jsonType = typePair.Key;
+				var componentType = typePair.Value;
+				if (componentType == component.GetType())
+				{
+					return JsonUtility.FromJson(jsonString, jsonType) as JsonComponentBase;
+				}
 			}
-			if (typeof(Cloth) == component.GetType())
-			{
-				var jsonCloth = JsonUtility.FromJson<JsonCloth>(jsonString);
-				return jsonCloth;
-			}
+
 			throw new NotImplementedException();
 		}
 

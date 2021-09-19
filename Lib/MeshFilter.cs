@@ -24,7 +24,6 @@ namespace tkchJsonSerialize
 		
 		//public JsonMesh mesh;
 		public List<JsonMesh> sharedMesh;
-		public string assetPath;
 		
 		public JsonMeshFilter(Component component) : base(component)
 		{
@@ -36,19 +35,10 @@ namespace tkchJsonSerialize
 			var t = _targetComponent = (MeshFilter) component;
 			
 			//this.mesh = new JsonMesh(t.mesh); // mesh で取得するとインスタンスが新しく生成されてしまう
-			var m = t.sharedMesh;
-			var meshInstanceId = m.GetInstanceID();
-			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
-			if (0 < meshAssetPath.Length)
-			{
-				assetPath = meshAssetPath;
-			}
-			else
-			{
-				sharedMesh = new List<JsonMesh>(1);
-				var jsonMesh = new JsonMesh(m);
-				sharedMesh.Add(jsonMesh);
-			}
+			var jsonMesh = new JsonMesh(t.sharedMesh);
+			
+			sharedMesh = new List<JsonMesh>(1);
+			sharedMesh.Add(jsonMesh);
 		}
 
 		public override void JsonRestore(Component component)
@@ -59,17 +49,9 @@ namespace tkchJsonSerialize
 			}
 			var meshFilter = (MeshFilter) component;
 
-			if (0 < assetPath.Length)
+			if (!ReferenceEquals(sharedMesh, null) && 0 < sharedMesh.Count)
 			{
-				
-			}
-			else
-			{
-				if (!ReferenceEquals(sharedMesh, null) && 0 < sharedMesh.Count)
-				{
-					meshFilter.sharedMesh = sharedMesh[0].value;
-				}
-				
+				meshFilter.sharedMesh = sharedMesh[0].value;
 			}
 		}
 	}

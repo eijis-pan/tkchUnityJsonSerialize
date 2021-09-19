@@ -2,6 +2,7 @@
 using System;
 using System.Reflection;
 using System.Text;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -546,6 +547,11 @@ namespace tkchJsonSerialize
 	{
 		private Mesh m;
 
+		public string assetPath;
+		
+		public string name;
+		public string hideFlags;
+		
 		public JsonMatrix4x4[] bindposes;
 		public JsonBounds bounds;
 		public Color[] colors;
@@ -569,6 +575,17 @@ namespace tkchJsonSerialize
 		public JsonMesh(Mesh m)
 		{
 			this.m = m;
+
+			this.name = m.name;
+			this.hideFlags = m.hideFlags.ToString();
+			
+			var meshInstanceId = m.GetInstanceID();
+			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
+			if (0 < meshAssetPath.Length)
+			{
+				assetPath = meshAssetPath;
+				return;
+			}
 			
 			// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
 
@@ -666,9 +683,31 @@ namespace tkchJsonSerialize
 	
 		public void OnAfterDeserialize ()
 		{
-			// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
-			// todo: 動的生成されたものであった場合、ここで復元が必要
-			m = new Mesh();
+			bool assetFound = false;
+			if (!ReferenceEquals(assetPath, null) && 0 < assetPath.Length)
+			{
+				if (assetPath.EndsWith(".fbx"))
+				{
+					// fbx の場合
+					var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
+					if (!ReferenceEquals(mesh, null))
+					{
+						m = mesh;
+						assetFound = true;
+					}
+					
+					// todo : mesh が複数の場合
+				}
+			}
+
+			if (!assetFound)
+			{
+				// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
+				// todo: 動的生成されたものであった場合、ここで復元が必要
+				m = new Mesh();
+			
+				// todo: 続き				
+			}
 		}
 	}
 
@@ -677,6 +716,8 @@ namespace tkchJsonSerialize
 	{
 		private Material m;
 
+		public string assetPath;
+		
 		public string name;
 		public string hideFlags;
 		
@@ -691,6 +732,16 @@ namespace tkchJsonSerialize
 
 			this.name = m.name;
 			this.hideFlags = m.hideFlags.ToString();
+
+			var meshInstanceId = m.GetInstanceID();
+			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
+			if (0 < meshAssetPath.Length)
+			{
+				assetPath = meshAssetPath;
+				return;
+			}
+			
+			// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
 			
 			this.color = m.color;
 			
@@ -713,6 +764,8 @@ namespace tkchJsonSerialize
 			{
 				this.mainTextureName = null;
 			}
+			
+			// todo: 続き				
 		}
 		
 		public Material value
@@ -727,11 +780,49 @@ namespace tkchJsonSerialize
 	
 		public void OnAfterDeserialize ()
 		{
-			// 多分 実際の fbx への情報が必要
-			m = new Material(Shader.Find(this.shaderName));
+			bool assetFound = false;
+			if (!ReferenceEquals(assetPath, null) && 0 < assetPath.Length)
+			{
+				if (assetPath.EndsWith(".fbx"))
+				{
+					// fbx の場合、複数のMaterialがあるので名前で一致する物を探す
+					var meshRenderer = AssetDatabase.LoadAssetAtPath<MeshRenderer>(assetPath);
+					if (!ReferenceEquals(meshRenderer, null))
+					{
+						foreach (var material in meshRenderer.sharedMaterials)
+						{
+							if (material.name == name)
+							{
+								m = material;
+								assetFound = true;
+								break;
+							}
+						}
+					}
+				}
+
+				if (!assetFound)
+				{
+					var material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+					if (!ReferenceEquals(material, null))
+					{
+						m = material;
+						assetFound = true;
+					}
+				}
+			}
 			
-			m.name = name;
-			m.hideFlags = (HideFlags)Enum.Parse(typeof(HideFlags), hideFlags);
+			if (!assetFound)
+			{
+				m = new Material(Shader.Find(this.shaderName));
+				m.name = name;
+				if (!ReferenceEquals(hideFlags, null) && 0 < hideFlags.Length)
+				{
+					m.hideFlags = (HideFlags)Enum.Parse(typeof(HideFlags), hideFlags);
+				}
+				
+				// todo: 続き				
+			}
 		}
 	}
 	

@@ -29,7 +29,6 @@ namespace tkchJsonSerialize
 		public List<JsonMesh> additionalVertexStreams;
 		public bool enabled;
 		public List<JsonMaterial> materials;
-		public List<string> assetPaths;
 		
 		public JsonMeshRenderer(Component component) : base(component)
 		{
@@ -57,24 +56,18 @@ namespace tkchJsonSerialize
 			var sharedMaterials = t.sharedMaterials;
 			if (!ReferenceEquals(sharedMaterials, null) && 0 < sharedMaterials.Length)
 			{
-				assetPaths = new List<string>(sharedMaterials.Length);
 				materials = new List<JsonMaterial>(sharedMaterials.Length);
 				foreach (var m in sharedMaterials)
 				{
-					var instanceId = m.GetInstanceID();
-					var assetPath = AssetDatabase.GetAssetPath(instanceId);
-					assetPaths.Add(assetPath);
 					var jsonMaterial = new JsonMaterial(m);
 					materials.Add(jsonMaterial);
 				}
 			}
 			else
 			{
-				assetPaths = new List<string>();
 				materials = new List<JsonMaterial>();
 			}
 			
-
 			// todo 続き
 		}
 
@@ -103,31 +96,20 @@ namespace tkchJsonSerialize
 			
 			if (!ReferenceEquals(materials, null) && 0 < materials.Count)
 			{
-				int count = materials.Count;
-				if (!ReferenceEquals(assetPaths, null) && 0 < assetPaths.Count)
+				Material[] newMaterials = new Material[materials.Count];
+				for (var i = 0; i < materials.Count; i++)
 				{
-					if (assetPaths.Count < count)
-					{
-						count = assetPaths.Count;
-					}
-				}
-				else
-				{
-					count = 0;
-				}
-
-				meshRenderer.materials = new Material[count - 1];
-				for (var i = 0; i < count; i++)
-				{
-					string assetPath = assetPaths[i];
 					JsonMaterial jsonMaterial = materials[i];
-					meshRenderer.materials[i] = jsonMaterial.value;
+					newMaterials[i] = jsonMaterial.value;
 				}
+				meshRenderer.sharedMaterials = newMaterials;
 			}
+			/*
 			else
 			{
-				meshRenderer.materials = new Material[0];
+				meshRenderer.sharedMaterial = new Material[0];
 			}
+			*/
 			
 			// todo 続き
 		}

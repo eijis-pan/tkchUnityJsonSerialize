@@ -122,11 +122,20 @@ namespace tkchJsonSerialize
 
 		public GameObject JsonRestoreObject()
 		{
+			/* todo:
 			string assetPath = this.assetPath;
 			if (!ReferenceEquals(children, null) && 0 < assetPath.Length)
 			{
-				return PrefabUtility.LoadPrefabContents(assetPath);
+				// GameObjectをロードしてもAssetそのものになる？
+				var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+				//loadedAsset.SetActive(true);
+				
+				// Prefab か fbx かのフラグが必要？
+				//var gameObject = PrefabUtility.LoadPrefabContents(assetPath);
+				//gameObject.hideFlags = HideFlags.None;
+				return loadedAsset;
 			}
+			*/
 
 			var go = new GameObject();
 			go.name = this.name;

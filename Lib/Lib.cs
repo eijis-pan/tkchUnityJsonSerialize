@@ -698,15 +698,37 @@ namespace tkchJsonSerialize
 					
 					// todo : mesh が複数の場合
 				}
+				else if (assetPath == "Library/unity default resources")
+				{
+					// PrimitiveType （Cube、Sphere など）
+					var primitiveType = (PrimitiveType)Enum.Parse(typeof(PrimitiveType), name);
+					var primitive = GameObject.CreatePrimitive(primitiveType);
+					if (!ReferenceEquals(primitive, null))
+					{
+						var meshFilter = primitive.GetComponent<MeshFilter>();
+						if (!ReferenceEquals(meshFilter, null))
+						{
+							m = meshFilter.sharedMesh;
+							assetFound = true;
+						}
+						GameObject.DestroyImmediate(primitive);
+					}
+				}
+				
+				if (!assetFound)
+				{
+					throw new Exception(string.Format("Asset not found. : {0} ({1}) : [ {2} ]", name, this.GetType(), assetPath));
+				}
 			}
-
-			if (!assetFound)
+			else
 			{
 				// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
 				// todo: 動的生成されたものであった場合、ここで復元が必要
 				m = new Mesh();
 			
 				// todo: 続き				
+
+				throw new NotImplementedException(string.Format("{0} の OnAfterDeserialize()", this.GetType()));
 			}
 		}
 	}
@@ -766,6 +788,8 @@ namespace tkchJsonSerialize
 			}
 			
 			// todo: 続き				
+
+			throw new NotImplementedException(string.Format("{0} の コンストラクタ()", this.GetType()));
 		}
 		
 		public Material value
@@ -810,15 +834,20 @@ namespace tkchJsonSerialize
 						assetFound = true;
 					}
 				}
+
+				if (!assetFound)
+				{
+					throw new Exception(string.Format("Asset not found. : {0} ({1}) : [ {2} ]", name, this.GetType(), assetPath));
+				}
 			}
-			
-			if (!assetFound)
+			else
 			{
 				m = new Material(Shader.Find(this.shaderName));
 				m.name = name;
 				m.hideFlags = hideFlags;
 				
 				// todo: 続き				
+				throw new NotImplementedException(string.Format("{0} の OnAfterDeserialize()", this.GetType()));
 			}
 		}
 	}

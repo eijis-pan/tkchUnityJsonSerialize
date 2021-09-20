@@ -122,20 +122,15 @@ namespace tkchJsonSerialize
 
 		public GameObject JsonRestoreObject()
 		{
-			/* todo:
-			string assetPath = this.assetPath;
-			if (!ReferenceEquals(children, null) && 0 < assetPath.Length)
+			if (!ReferenceEquals(assetPath, null) && 0 < assetPath.Length)
 			{
-				// GameObjectをロードしてもAssetそのものになる？
-				var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-				//loadedAsset.SetActive(true);
-				
-				// Prefab か fbx かのフラグが必要？
-				//var gameObject = PrefabUtility.LoadPrefabContents(assetPath);
-				//gameObject.hideFlags = HideFlags.None;
-				return loadedAsset;
+				if (assetPath.EndsWith(".prefab") || assetPath.EndsWith(".fbx"))
+				{
+					var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+					PrefabUtility.InstantiatePrefab(loadedAsset);
+					return loadedAsset;
+				}
 			}
-			*/
 
 			var go = new GameObject();
 			go.name = this.name;
@@ -214,7 +209,7 @@ namespace tkchJsonSerialize
 			}
 			catch (Exception ex)
 			{
-				Debug.LogFormat("Custom Script Exception : {0}", ex.ToString());
+				Debug.LogFormat("Custom Script Exception : {0} : {1}", this.name, ex.ToString());
 			}
 			
 			transform = new List<JsonTransform>();

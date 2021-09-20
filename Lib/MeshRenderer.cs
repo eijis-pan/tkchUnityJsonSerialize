@@ -24,7 +24,7 @@ namespace tkchJsonSerialize
 		
 		public string name;
 		public string tag;
-		public string hideFlags;
+		public HideFlags hideFlags;
 		
 		public List<JsonMesh> additionalVertexStreams;
 		public bool enabled;
@@ -41,7 +41,7 @@ namespace tkchJsonSerialize
 
 			this.name = t.name;
 			this.tag = t.tag;
-			this.hideFlags = t.hideFlags.ToString();
+			this.hideFlags = t.hideFlags;
 
 			this.additionalVertexStreams = new List<JsonMesh>();
 			if (!ReferenceEquals(t.additionalVertexStreams, null))
@@ -81,7 +81,7 @@ namespace tkchJsonSerialize
 
 			meshRenderer.name = name;
 			meshRenderer.tag = tag;
-			meshRenderer.hideFlags = (HideFlags)Enum.Parse(typeof(HideFlags), hideFlags);
+			meshRenderer.hideFlags = hideFlags;
 
 			if (!ReferenceEquals(additionalVertexStreams, null) && 0 < additionalVertexStreams.Count)
 			{

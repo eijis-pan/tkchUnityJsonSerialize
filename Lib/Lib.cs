@@ -550,7 +550,7 @@ namespace tkchJsonSerialize
 		public string assetPath;
 		
 		public string name;
-		public string hideFlags;
+		public HideFlags hideFlags;
 		
 		public JsonMatrix4x4[] bindposes;
 		public JsonBounds bounds;
@@ -577,7 +577,7 @@ namespace tkchJsonSerialize
 			this.m = m;
 
 			this.name = m.name;
-			this.hideFlags = m.hideFlags.ToString();
+			this.hideFlags = m.hideFlags;
 			
 			var meshInstanceId = m.GetInstanceID();
 			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
@@ -719,7 +719,7 @@ namespace tkchJsonSerialize
 		public string assetPath;
 		
 		public string name;
-		public string hideFlags;
+		public HideFlags hideFlags;
 		
 		public Color color;
 		public string shaderName;
@@ -731,7 +731,7 @@ namespace tkchJsonSerialize
 			this.m = m;
 
 			this.name = m.name;
-			this.hideFlags = m.hideFlags.ToString();
+			this.hideFlags = m.hideFlags;
 
 			var meshInstanceId = m.GetInstanceID();
 			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
@@ -816,10 +816,7 @@ namespace tkchJsonSerialize
 			{
 				m = new Material(Shader.Find(this.shaderName));
 				m.name = name;
-				if (!ReferenceEquals(hideFlags, null) && 0 < hideFlags.Length)
-				{
-					m.hideFlags = (HideFlags)Enum.Parse(typeof(HideFlags), hideFlags);
-				}
+				m.hideFlags = hideFlags;
 				
 				// todo: 続き				
 			}

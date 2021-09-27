@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -45,11 +46,30 @@ namespace tkchJsonSerialize
 		{
 			var scene = SceneManager.GetActiveScene();
 
-			foreach (var child in children)
+			bool changed = false;
+
+			try
 			{
-				var go = child.JsonRestoreObject();
-				SceneManager.MoveGameObjectToScene(go, scene);
+				foreach (var child in children)
+				{
+					var go = child.JsonRestoreObject();
+					SceneManager.MoveGameObjectToScene(go, scene);
+					changed = true;
+				}
 			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e);
+				throw;
+			}
+			finally
+			{
+				if (changed)
+				{
+					EditorSceneManager.MarkSceneDirty(scene);
+				}
+			}
+
 		}
 	}
 
@@ -60,8 +80,16 @@ namespace tkchJsonSerialize
 		//private GameObject _targetComponent;
 		
 		public string name;
+		public string tag;
+		public HideFlags hideFlags;
+		//public bool enabled;
+		
+		public bool activeSelf;
+
 		public string path;
-		public string assetPath;
+		//public string assetPath;
+		public JsonAssetReference assetReference;
+		[NonSerialized]
 		public List<JsonGameObject> children = new List<JsonGameObject>();
 		public List<JsonComponentType> componentTypes = new List<JsonComponentType>();
 		
@@ -78,7 +106,13 @@ namespace tkchJsonSerialize
 
 		protected void init(GameObject gameObject)
 		{
-			this.name = gameObject.name;
+			name = gameObject.name;
+			tag = gameObject.tag;
+			hideFlags = gameObject.hideFlags;
+			//enabled = gameObject.enabled;
+
+			activeSelf = gameObject.activeSelf;
+			
 			AddComponentTypes(gameObject);
 			SearchAssetPath(gameObject);
 		}
@@ -99,7 +133,8 @@ namespace tkchJsonSerialize
 			var gameObjectId = PrefabUtility.GetPrefabParent(gameObject);
 			//var gameObjectId = gameObject.GetInstanceID();
 			var gameObjectAssetPath = AssetDatabase.GetAssetPath(gameObjectId);
-			this.assetPath = gameObjectAssetPath;
+			//this.assetPath = gameObjectAssetPath;
+			assetReference = new JsonAssetReference(gameObjectAssetPath);
 		}
 
 		public void OnBeforeSerialize()
@@ -122,18 +157,22 @@ namespace tkchJsonSerialize
 
 		public GameObject JsonRestoreObject()
 		{
-			if (!ReferenceEquals(assetPath, null) && 0 < assetPath.Length)
+			GameObject go = null;
+			if (JsonAssetReference.IsValid(assetReference))
 			{
-				if (assetPath.EndsWith(".prefab") || assetPath.EndsWith(".fbx"))
-				{
-					var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-					PrefabUtility.InstantiatePrefab(loadedAsset);
-					return loadedAsset;
-				}
+				go = (GameObject)assetReference.FindAsset(typeof(GameObject), null);
 			}
-
-			var go = new GameObject();
-			go.name = this.name;
+			else
+			{
+				go = new GameObject();
+			}
+			
+			go.name = name;
+			go.tag = tag;
+			go.hideFlags = hideFlags;
+			//go.enabled = enabled;
+			
+			go.SetActive(activeSelf);
 
 			if (!ReferenceEquals(children, null))
 			{
@@ -155,8 +194,8 @@ namespace tkchJsonSerialize
 							continue;
 						}
 						
+						/*
 						Component c = null;
-						
 						// Transform は最初からある
 						if (componentType == typeof(Transform))
 						{
@@ -166,7 +205,27 @@ namespace tkchJsonSerialize
 						{
 							c = go.AddComponent(componentType);							
 						}
+						*/
 
+						Component c = go.GetComponent(componentType);
+						
+						if (!ReferenceEquals(c, null))
+						{
+							try
+							{
+								var checkName = c.name;
+							}
+							catch
+							{
+								c = null;
+							}
+						}
+						
+						if (ReferenceEquals(c, null))
+						{
+							c = go.AddComponent(componentType);							
+						}
+						
 						JsonComponentBase jc = child.component;
 						if (ReferenceEquals(jc, null))
 						{
@@ -195,7 +254,11 @@ namespace tkchJsonSerialize
 		
 		public List<JsonTransform> transform;
 		public List<JsonMeshFilter> meshFilter;
-		public List<JsonMeshRenderer> meshRendere;
+		public List<JsonMeshRenderer> meshRenderer;
+		public List<JsonMeshCollider> meshCollider;
+		public List<JsonBoxCollider> boxCollider;
+		public List<JsonSphereCollider> sphereCollider;
+		public List<JsonAnimator> animator;
 		public List<JsonCloth> cloth;
 
 		private Dictionary<Type, object> _componentDict;
@@ -214,7 +277,11 @@ namespace tkchJsonSerialize
 			
 			transform = new List<JsonTransform>();
 			meshFilter = new List<JsonMeshFilter>();
-			meshRendere = new List<JsonMeshRenderer>();
+			meshRenderer = new List<JsonMeshRenderer>();
+			meshCollider = new List<JsonMeshCollider>();
+			boxCollider = new List<JsonBoxCollider>();
+			sphereCollider = new List<JsonSphereCollider>();
+			animator = new List<JsonAnimator>();
 			cloth = new List<JsonCloth>();
 		}
 
@@ -227,8 +294,12 @@ namespace tkchJsonSerialize
 			JsonComponentBase.ImplementedTypePairsFromJson.Values.CopyTo(componentTypes, 0);
 			_componentDict[componentTypes[0]] = transform;
 			_componentDict[componentTypes[1]] = meshFilter;
-			_componentDict[componentTypes[2]] = meshRendere;
-			_componentDict[componentTypes[3]] = cloth;
+			_componentDict[componentTypes[2]] = meshRenderer;
+			_componentDict[componentTypes[3]] = meshCollider;
+			_componentDict[componentTypes[4]] = boxCollider;
+			_componentDict[componentTypes[5]] = sphereCollider;
+			_componentDict[componentTypes[6]] = animator;
+			_componentDict[componentTypes[7]] = cloth;
 		}
 		
 		public void OnBeforeSerialize()

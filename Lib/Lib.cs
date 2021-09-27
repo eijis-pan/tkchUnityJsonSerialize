@@ -1,10 +1,8 @@
 ﻿using System.Collections.Generic;
 using System;
-using System.Reflection;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace tkchJsonSerialize
 {
@@ -200,7 +198,7 @@ namespace tkchJsonSerialize
 		public enum ReferenceStateEnum
 		{
 			UnCheck,
-			Unnecessary,
+			Unnecessary, // 不要
 			Found,
 			NotFound
 		}
@@ -356,7 +354,7 @@ namespace tkchJsonSerialize
 			}
 		}
 	}
-
+	
 	[Serializable]
 	public class JsonClothSphereColliderPair : ISerializationCallbackReceiver
 	{
@@ -541,16 +539,175 @@ namespace tkchJsonSerialize
 			b.size = size.value;
 		}
 	}
-	
+
+	[Serializable]
+	public class JsonAssetReference
+	{
+		public string assetPath;
+
+		public enum ReferenceStateEnum
+		{
+			UnCheck,
+			Found,
+			NotFound
+		}
+		[NonSerialized] public ReferenceStateEnum ReferenceState = ReferenceStateEnum.UnCheck;
+
+		public static bool IsValid(JsonAssetReference jsonAssetReference)
+		{
+			return (
+				!ReferenceEquals(jsonAssetReference, null) && 
+				!ReferenceEquals(jsonAssetReference.assetPath, null) &&
+			       0 < jsonAssetReference.assetPath.Length
+				);
+		}
+		
+		public JsonAssetReference(string assetPath)
+		{
+			this.assetPath = assetPath;
+		}
+		
+		public object FindAsset (Type type, string param)
+		{
+			ReferenceState = ReferenceStateEnum.NotFound;
+			object result = null;
+			if (assetPath.EndsWith(".prefab"))
+			{
+				if (typeof(GameObject) == type)
+				{
+					var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+					var go = PrefabUtility.InstantiatePrefab(loadedAsset);
+					result = go;
+				}
+				else
+				{
+					throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応のType {1}", assetPath, type.Name));
+				}
+
+				if (!ReferenceEquals(result, null))
+				{
+					ReferenceState = ReferenceStateEnum.Found;
+				}
+			}
+			else if (assetPath.EndsWith(".fbx"))
+			{
+				// fbx の場合
+				if (typeof(GameObject) == type)
+				{
+					var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+					var go = PrefabUtility.InstantiatePrefab(loadedAsset);
+					result = go;
+				}
+				else if (typeof(Mesh) == type)
+				{
+					result = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
+					
+					// todo : mesh が複数の場合がある？
+				}
+				else if (typeof(Avatar) == type)
+				{
+					result = AssetDatabase.LoadAssetAtPath<Avatar>(assetPath);
+				}
+				else if (typeof(Material) == type)
+				{
+					// fbx の場合、複数のMaterialがあるので名前で一致する物を探す
+					var meshRenderer = AssetDatabase.LoadAssetAtPath<MeshRenderer>(assetPath);
+					if (!ReferenceEquals(meshRenderer, null))
+					{
+						foreach (var material in meshRenderer.sharedMaterials)
+						{
+							if (material.name == param)
+							{
+								result = material;
+								break;
+							}
+						}
+					}
+				}
+				else
+				{
+					throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応のType {1}", assetPath, type.Name));
+				}
+
+				if (!ReferenceEquals(result, null))
+				{
+					ReferenceState = ReferenceStateEnum.Found;
+				}
+			}
+			else if(assetPath.EndsWith(".mat"))
+			{
+				if (typeof(Material) == type)
+				{
+					var material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+					if (!ReferenceEquals(material, null))
+					{
+						result = material;
+						ReferenceState = ReferenceStateEnum.Found;
+					}
+				}
+				else
+				{
+					throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応のType {1}", assetPath, type.Name));
+				}
+			}
+			else if(assetPath.EndsWith(".controller"))
+			{
+				if (typeof(RuntimeAnimatorController) == type)
+				{
+					var rac = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(assetPath);
+					if (!ReferenceEquals(rac, null))
+					{
+						result = rac;
+						ReferenceState = ReferenceStateEnum.Found;
+					}
+				}
+				else
+				{
+					throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応のType {1}", assetPath, type.Name));
+				}
+			}
+			else if (assetPath == "Library/unity default resources")
+			{
+				// PrimitiveType （Cube、Sphere など）の Mesh
+				var primitiveType = (PrimitiveType)Enum.Parse(typeof(PrimitiveType), param);
+				var primitive = GameObject.CreatePrimitive(primitiveType);
+				if (!ReferenceEquals(primitive, null))
+				{
+					var meshFilter = primitive.GetComponent<MeshFilter>();
+					if (!ReferenceEquals(meshFilter, null))
+					{
+						result = meshFilter.sharedMesh;
+						//result = meshFilter.mesh;
+						ReferenceState = ReferenceStateEnum.Found;
+					}
+					GameObject.DestroyImmediate(primitive);
+				}
+			}
+			else
+			{
+				throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応の拡張子", assetPath));
+			}
+			
+			return result;
+
+			/*
+			if (!assetFound)
+			{
+				throw new Exception(string.Format("Asset not found. : {0} ({1}) : [ {2} ]", name, this.GetType(), assetPath));
+			}
+			*/
+		}
+	}
+
 	[Serializable]
 	public class JsonMesh : ISerializationCallbackReceiver
 	{
 		private Mesh m;
 
-		public string assetPath;
-		
 		public string name;
 		public HideFlags hideFlags;
+
+		public JsonAssetReference assetReference;
 		
 		public JsonMatrix4x4[] bindposes;
 		public JsonBounds bounds;
@@ -583,7 +740,7 @@ namespace tkchJsonSerialize
 			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
 			if (0 < meshAssetPath.Length)
 			{
-				assetPath = meshAssetPath;
+				assetReference = new JsonAssetReference(meshAssetPath);
 				return;
 			}
 			
@@ -683,44 +840,7 @@ namespace tkchJsonSerialize
 	
 		public void OnAfterDeserialize ()
 		{
-			bool assetFound = false;
-			if (!ReferenceEquals(assetPath, null) && 0 < assetPath.Length)
-			{
-				if (assetPath.EndsWith(".fbx"))
-				{
-					// fbx の場合
-					var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
-					if (!ReferenceEquals(mesh, null))
-					{
-						m = mesh;
-						assetFound = true;
-					}
-					
-					// todo : mesh が複数の場合
-				}
-				else if (assetPath == "Library/unity default resources")
-				{
-					// PrimitiveType （Cube、Sphere など）
-					var primitiveType = (PrimitiveType)Enum.Parse(typeof(PrimitiveType), name);
-					var primitive = GameObject.CreatePrimitive(primitiveType);
-					if (!ReferenceEquals(primitive, null))
-					{
-						var meshFilter = primitive.GetComponent<MeshFilter>();
-						if (!ReferenceEquals(meshFilter, null))
-						{
-							m = meshFilter.sharedMesh;
-							assetFound = true;
-						}
-						GameObject.DestroyImmediate(primitive);
-					}
-				}
-				
-				if (!assetFound)
-				{
-					throw new Exception(string.Format("Asset not found. : {0} ({1}) : [ {2} ]", name, this.GetType(), assetPath));
-				}
-			}
-			else
+			if (ReferenceEquals(assetReference, null) || ReferenceEquals(assetReference.assetPath, null) || assetReference.assetPath.Length <= 0)
 			{
 				// fbx の AseetPathが取得できた場合はここを呼ばなくて済む
 				// todo: 動的生成されたものであった場合、ここで復元が必要
@@ -730,6 +850,10 @@ namespace tkchJsonSerialize
 
 				throw new NotImplementedException(string.Format("{0} の OnAfterDeserialize()", this.GetType()));
 			}
+			else
+			{
+				m = (Mesh) assetReference.FindAsset(typeof(Mesh), name);
+			}
 		}
 	}
 
@@ -737,11 +861,11 @@ namespace tkchJsonSerialize
 	public class JsonMaterial : ISerializationCallbackReceiver
 	{
 		private Material m;
-
-		public string assetPath;
 		
 		public string name;
 		public HideFlags hideFlags;
+		
+		public JsonAssetReference assetReference;
 		
 		public Color color;
 		public string shaderName;
@@ -759,7 +883,7 @@ namespace tkchJsonSerialize
 			var meshAssetPath = AssetDatabase.GetAssetPath(meshInstanceId);
 			if (0 < meshAssetPath.Length)
 			{
-				assetPath = meshAssetPath;
+				assetReference = new JsonAssetReference(meshAssetPath);
 				return;
 			}
 			
@@ -804,43 +928,7 @@ namespace tkchJsonSerialize
 	
 		public void OnAfterDeserialize ()
 		{
-			bool assetFound = false;
-			if (!ReferenceEquals(assetPath, null) && 0 < assetPath.Length)
-			{
-				if (assetPath.EndsWith(".fbx"))
-				{
-					// fbx の場合、複数のMaterialがあるので名前で一致する物を探す
-					var meshRenderer = AssetDatabase.LoadAssetAtPath<MeshRenderer>(assetPath);
-					if (!ReferenceEquals(meshRenderer, null))
-					{
-						foreach (var material in meshRenderer.sharedMaterials)
-						{
-							if (material.name == name)
-							{
-								m = material;
-								assetFound = true;
-								break;
-							}
-						}
-					}
-				}
-
-				if (!assetFound)
-				{
-					var material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
-					if (!ReferenceEquals(material, null))
-					{
-						m = material;
-						assetFound = true;
-					}
-				}
-
-				if (!assetFound)
-				{
-					throw new Exception(string.Format("Asset not found. : {0} ({1}) : [ {2} ]", name, this.GetType(), assetPath));
-				}
-			}
-			else
+			if (ReferenceEquals(assetReference, null) || ReferenceEquals(assetReference.assetPath, null) || assetReference.assetPath.Length <= 0)
 			{
 				m = new Material(Shader.Find(this.shaderName));
 				m.name = name;
@@ -848,6 +936,77 @@ namespace tkchJsonSerialize
 				
 				// todo: 続き				
 				throw new NotImplementedException(string.Format("{0} の OnAfterDeserialize()", this.GetType()));
+			}
+			else
+			{
+				m = (Material) assetReference.FindAsset(typeof(Material), name);
+			}
+		}
+	}
+	
+	[Serializable]
+	public class JsonPhysicMaterial : ISerializationCallbackReceiver
+	{
+		private PhysicMaterial pm;
+
+		public string assetPath;
+		
+		public string name;
+		//public string tag;
+		public HideFlags hideFlags;
+		//public bool enabled;
+		
+		public float bounciness;
+		public string bounceCombine;
+		public float dynamicFriction;
+		public string frictionCombine;
+		public float staticFriction;
+		
+		public JsonPhysicMaterial(PhysicMaterial pm)
+		{
+			this.pm = pm;
+
+			name = pm.name;
+			//tag = pm.tag;
+			hideFlags = pm.hideFlags;
+			//enabled = pm.enabled;
+
+			bounciness = pm.bounciness;
+			bounceCombine = pm.bounceCombine.ToString();
+			dynamicFriction = pm.dynamicFriction;
+			frictionCombine = pm.frictionCombine.ToString();
+			staticFriction = pm.staticFriction;
+		}
+		
+		public PhysicMaterial value
+		{
+			get { return pm;  }
+		}
+		
+		public void OnBeforeSerialize ()
+		{
+			// nop
+		}
+	
+		public void OnAfterDeserialize ()
+		{
+			pm = new PhysicMaterial
+			{
+				hideFlags = hideFlags,
+				name = name,
+				bounceCombine = PhysicMaterialCombine.Average,
+				bounciness = bounciness,
+				dynamicFriction = dynamicFriction,
+				frictionCombine = PhysicMaterialCombine.Average,
+				staticFriction = staticFriction,
+			};
+			if (!ReferenceEquals(bounceCombine, null) && 0 < bounceCombine.Length)
+			{
+				pm.bounceCombine = (PhysicMaterialCombine)Enum.Parse(typeof(PhysicMaterialCombine), bounceCombine);
+			}
+			if (!ReferenceEquals(frictionCombine, null) && 0 < frictionCombine.Length)
+			{
+				pm.frictionCombine = (PhysicMaterialCombine)Enum.Parse(typeof(PhysicMaterialCombine), frictionCombine);
 			}
 		}
 	}

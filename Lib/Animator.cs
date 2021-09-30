@@ -28,12 +28,9 @@ namespace tkchJsonSerialize
 
         public JsonAssetReference avatar;
         public float speed;
-        public JsonVector3 bodyPosition;
-        public JsonQuaternion bodyRotation;
         public string cullingMode;
         public bool fireEvents;
         public bool logWarnings;
-        public float playbackTime;
         public JsonVector3 rootPosition;
         public JsonQuaternion rootRotation;
         public bool stabilizeFeet;
@@ -45,6 +42,15 @@ namespace tkchJsonSerialize
         public JsonAssetReference runtimeAnimatorController;
         public bool layersAffectMassCenter;
         public bool keepAnimatorControllerStateOnDisable;
+        
+        //
+        // Not necessary for restore
+        //
+
+        // public JsonVector3 bodyPosition;
+        // public JsonQuaternion bodyRotation;
+        // public float playbackTime;
+
         
         public JsonAnimator(Component component) : base(component)
         {
@@ -69,12 +75,9 @@ namespace tkchJsonSerialize
             }
             
             speed = t.speed;
-            bodyPosition = new JsonVector3(t.bodyPosition);
-            bodyRotation = new JsonQuaternion(t.bodyRotation);
             cullingMode = t.cullingMode.ToString();
             fireEvents = t.fireEvents;
             logWarnings = t.logWarnings;
-            playbackTime = t.playbackTime;
             rootPosition = new JsonVector3(t.rootPosition);
             rootRotation = new JsonQuaternion(t.rootRotation);
             stabilizeFeet = t.stabilizeFeet;
@@ -94,6 +97,14 @@ namespace tkchJsonSerialize
 
             layersAffectMassCenter = t.layersAffectMassCenter;
             keepAnimatorControllerStateOnDisable = t.keepAnimatorControllerStateOnDisable;
+            
+            //
+            // Not necessary for restore
+            //
+            
+            // bodyPosition = new JsonVector3(t.bodyPosition);
+            // bodyRotation = new JsonQuaternion(t.bodyRotation);
+            // playbackTime = t.playbackTime;
         }
 
         public override void JsonRestore(Component component)
@@ -116,15 +127,12 @@ namespace tkchJsonSerialize
             }
             
             animator.speed = speed;
-            animator.bodyPosition = bodyPosition.value;
-            animator.bodyRotation = bodyRotation.value;
             if (!ReferenceEquals(cullingMode, null) && 0 < cullingMode.Length)
             {
                 animator.cullingMode = (AnimatorCullingMode)Enum.Parse(typeof(AnimatorCullingMode), cullingMode);
             }
             animator.fireEvents = fireEvents;
             animator.logWarnings = logWarnings;
-            animator.playbackTime = playbackTime;
             animator.rootPosition = rootPosition.value;
             animator.rootRotation = rootRotation.value;
             animator.stabilizeFeet = stabilizeFeet;
@@ -145,6 +153,13 @@ namespace tkchJsonSerialize
 
             animator.layersAffectMassCenter = layersAffectMassCenter;
             animator.keepAnimatorControllerStateOnDisable = keepAnimatorControllerStateOnDisable;
+            
+            //
+            // Not necessary for restore
+            //
+            // animator.bodyPosition = bodyPosition.value;
+            // animator.bodyRotation = bodyRotation.value;
+            // animator.playbackTime = playbackTime;
         }
     }
 }

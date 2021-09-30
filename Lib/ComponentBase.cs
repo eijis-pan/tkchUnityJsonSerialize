@@ -81,6 +81,7 @@ namespace tkchJsonSerialize
 			{ typeof(JsonTransform), typeof(Transform) },
 			{ typeof(JsonMeshFilter), typeof(MeshFilter) },
 			{ typeof(JsonMeshRenderer), typeof(MeshRenderer) },
+			{ typeof(JsonSkinnedMeshRenderer), typeof(SkinnedMeshRenderer) },
 			{ typeof(JsonMeshCollider), typeof(MeshCollider) },
 			{ typeof(JsonBoxCollider), typeof(BoxCollider) },
 			{ typeof(JsonSphereCollider), typeof(SphereCollider) },

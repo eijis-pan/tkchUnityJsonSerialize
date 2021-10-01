@@ -82,11 +82,12 @@ namespace tkchJsonSerialize
 					
 					var go = jsonGameObject.JsonRestoreObject();
 					SceneManager.MoveGameObjectToScene(go, scene);
+					jsonGameObject.RestoreComponents(go);
 					changed = true;
 
 					foreach (var childInstanceId in jsonGameObject.childInstanceIds)
 					{
-						createGameObjectByInstanceId(childInstanceId, go.transform, scene);
+						createGameObjectByInstanceId(childInstanceId, go.transform, scene, jsonGameObject.assetReference.assetPath);
 					}
 				}
 				
@@ -105,7 +106,7 @@ namespace tkchJsonSerialize
 			}
 		}
 
-		private void createGameObjectByInstanceId(int instanceId, Transform parentTr, Scene sc)
+		private void createGameObjectByInstanceId(int instanceId, Transform parentTr, Scene sc, string parentAssetPath)
 		{
 			//var jsonGameObject = (JsonGameObject)instanceIdToGameObject[instanceId];
 
@@ -116,13 +117,33 @@ namespace tkchJsonSerialize
 			}
 
 			var jsonGameObject = gameObjectList[idx];
-			var go = jsonGameObject.JsonRestoreObject();
-			//SceneManager.MoveGameObjectToScene(go, sc);
-			go.transform.SetParent(parentTr);
+			var assetPath = jsonGameObject.assetReference.assetPath;
+			GameObject go = null;
+			if (parentAssetPath == assetPath)
+			{
+				for (int i = 0; i < parentTr.childCount; i++)
+				{
+					var child = parentTr.GetChild(i);
+					if (child.name == jsonGameObject.name)
+					{
+						go = parentTr.gameObject;
+						break;
+					}
+				}
+			}
+			if (ReferenceEquals(go, null))
+			{
+				go = jsonGameObject.JsonRestoreObject();
+				
+				//SceneManager.MoveGameObjectToScene(go, sc);
+				go.transform.SetParent(parentTr);
+			}
+			
+			jsonGameObject.RestoreComponents(go);
 			
 			foreach (var childInstanceId in jsonGameObject.childInstanceIds)
 			{
-				createGameObjectByInstanceId(childInstanceId, go.transform, sc);
+				createGameObjectByInstanceId(childInstanceId, go.transform, sc, jsonGameObject.assetReference.assetPath);
 			}
 		}
 	}
@@ -248,7 +269,15 @@ namespace tkchJsonSerialize
 				}
 			}
 			*/
+
+			// ここで行うと、子オブジェクトのスケールで問題が出る
+			//RestoreComponents(go);
 			
+			return go;
+		}
+
+		public void RestoreComponents(GameObject go)
+		{
 			if (!ReferenceEquals(componentTypes, null))
 			{
 				foreach (var child in componentTypes)
@@ -301,8 +330,6 @@ namespace tkchJsonSerialize
 					}
 				}
 			}
-			
-			return go;
 		}
 	}
 	

@@ -589,7 +589,7 @@ namespace tkchJsonSerialize
 					ReferenceState = ReferenceStateEnum.Found;
 				}
 			}
-			else if (assetPath.EndsWith(".fbx"))
+			else if (assetPath.EndsWith(".fbx") || assetPath.EndsWith(".dae"))
 			{
 				// fbx の場合
 				if (typeof(GameObject) == type)

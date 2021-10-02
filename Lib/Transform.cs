@@ -37,14 +37,14 @@ namespace tkchJsonSerialize
 		// public JsonVector3 position;
 		// public JsonQuaternion rotation;
 		// public JsonVector3 eulerAngles;
-		// public JsonVector3 lossyScale;
 	
 		//
 		// read only
 		//
 		
-		//public JsonMatrix4x4 localToWorldMatrix;
-		//public JsonMatrix4x4 worldToLocalMatrix;
+		// public JsonVector3 lossyScale;
+		// public JsonMatrix4x4 localToWorldMatrix;
+		// public JsonMatrix4x4 worldToLocalMatrix;
 	
 		public JsonTransform(Component component) : base(component)
 		{
@@ -71,14 +71,14 @@ namespace tkchJsonSerialize
 			// this.position = new JsonVector3(t.position);
 			// this.rotation = new JsonQuaternion(t.rotation);
 			// this.eulerAngles = new JsonVector3(t.eulerAngles);
-			// this.lossyScale = new JsonVector3(t.lossyScale);
 		
 			//
 			// read only
 			//
 			
-			//this.localToWorldMatrix = new JsonMatrix4x4(t.localToWorldMatrix);
-			//this.worldToLocalMatrix = new JsonMatrix4x4(t.worldToLocalMatrix);
+			// this.lossyScale = new JsonVector3(t.lossyScale);
+			// this.localToWorldMatrix = new JsonMatrix4x4(t.localToWorldMatrix);
+			// this.worldToLocalMatrix = new JsonMatrix4x4(t.worldToLocalMatrix);
 		}
 
 		public override void JsonRestore(Component component)
@@ -102,6 +102,9 @@ namespace tkchJsonSerialize
 			// if (!ReferenceEquals(position, null)) { transform.position = position.value; }
 			// if (!ReferenceEquals(rotation, null)) { transform.rotation = rotation.value; }
 			// if (!ReferenceEquals(eulerAngles, null)) { transform.eulerAngles = eulerAngles.value; }
+			
+			// read only
+			
 			// if (!ReferenceEquals(lossyScale, null)) { transform.lossyScale = lossyScale.value; }
 		}
 	}

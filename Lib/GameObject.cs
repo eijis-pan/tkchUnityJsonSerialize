@@ -17,6 +17,31 @@ namespace tkchJsonSerialize
 	}
 	*/
 	
+	public class RestoreResult
+	{
+		public enum ResultType
+		{
+			Info,
+			Warning,
+			Error
+		}
+
+		private string _message;
+		private string _itemName;
+		private ResultType _type;
+
+		public virtual string Message => _message;
+		public virtual string ItemName => _itemName;
+		public virtual ResultType Type => _type;
+		
+		public RestoreResult(string message, string itemName = null, ResultType type = ResultType.Info)
+		{
+			_message = message;
+			_itemName = itemName;
+			_type = type;
+		}
+	}
+	
 	[Serializable]
 	public class JsonRoot // : ISerializationCallbackReceiver //, IJsonInstantiation
 	{
@@ -26,6 +51,8 @@ namespace tkchJsonSerialize
 		public List<int> instanceIdList;
 		public List<JsonGameObject> gameObjectList;
 
+		private List<RestoreResult> _restoreResults = new List<RestoreResult>();
+		
 		/*
 		public JsonRoot(List<JsonGameObject> t)
 		{
@@ -56,6 +83,8 @@ namespace tkchJsonSerialize
 
 		public void JsonRestoreToSecne()
 		{
+			_restoreResults = new List<RestoreResult>();
+			
 			var scene = SceneManager.GetActiveScene();
 
 			bool changed = false;
@@ -81,6 +110,18 @@ namespace tkchJsonSerialize
 					}
 					
 					var go = jsonGameObject.JsonRestoreObject();
+					if (ReferenceEquals(go, null))
+					{
+						_restoreResults.Add(
+							new RestoreResult(
+								"GameObject の復元に失敗",
+								jsonGameObject.path,
+								RestoreResult.ResultType.Error
+								)
+							);
+						continue;
+					}
+					
 					SceneManager.MoveGameObjectToScene(go, scene);
 					jsonGameObject.RestoreComponents(go);
 					changed = true;
@@ -146,6 +187,16 @@ namespace tkchJsonSerialize
 				createGameObjectByInstanceId(childInstanceId, go.transform, sc, jsonGameObject.assetReference.assetPath);
 			}
 		}
+
+		public RestoreResult[] GetRestoreErrorList()
+		{
+			foreach(var child in gameObjectList)
+			{
+				_restoreResults.AddRange(child.GetRestoreErrorList());
+			}
+			
+			return _restoreResults.ToArray();
+		}
 	}
 
 	
@@ -169,6 +220,8 @@ namespace tkchJsonSerialize
 		public JsonAssetReference assetReference;
 		//public List<JsonGameObject> children = new List<JsonGameObject>();
 		public List<JsonComponentType> componentTypes = new List<JsonComponentType>();
+		
+		private List<RestoreResult> _restoreResults = new List<RestoreResult>();
 		
 		public JsonGameObject(GameObject gameObject)
 		{
@@ -243,10 +296,23 @@ namespace tkchJsonSerialize
 
 		public GameObject JsonRestoreObject()
 		{
+			_restoreResults = new List<RestoreResult>();
+			
 			GameObject go = null;
 			if (JsonAssetReference.IsValid(assetReference))
 			{
 				go = (GameObject)assetReference.FindAsset(typeof(GameObject), null);
+				if (ReferenceEquals(go, null))
+				{
+					_restoreResults.Add(
+						new RestoreResult(
+							"Asset を使った復元に失敗",
+							path,
+							RestoreResult.ResultType.Error
+						)
+					);
+					return null;
+				}
 			}
 			else
 			{
@@ -331,6 +397,22 @@ namespace tkchJsonSerialize
 				}
 			}
 		}
+		
+		public RestoreResult[] GetRestoreErrorList()
+		{
+			if (ReferenceEquals(_restoreResults, null))
+			{
+				// 親のGameObjectがAssetから復元された場合、RestoreComponents() が呼ばれずにこの処理まで来る可能性がある
+				_restoreResults = new List<RestoreResult>();
+			}
+			
+			foreach(var componentType in componentTypes)
+			{
+				_restoreResults.AddRange(componentType.GetRestoreErrorList());
+			}
+			
+			return _restoreResults.ToArray();
+		}
 	}
 	
 	[Serializable]
@@ -357,6 +439,8 @@ namespace tkchJsonSerialize
 
 		private Dictionary<Type, object> _componentDict;
 		
+		private List<RestoreResult> _restoreResults = new List<RestoreResult>();
+		
 		public JsonComponentType(Component t)
 		{
 			this.name = t.GetType().Name;
@@ -364,9 +448,20 @@ namespace tkchJsonSerialize
 			{
 				component = JsonComponentBase.CreateJsonComponent(t);
 			}
+			catch (NotImplementedException ex)
+			{
+				_restoreResults.Add(
+					new RestoreResult(
+						"未対応の Component",
+						name,
+						RestoreResult.ResultType.Warning
+					)
+				);
+			}
 			catch (Exception ex)
 			{
 				Debug.LogFormat("Custom Script Exception : {0} : {1}", this.name, ex.ToString());
+				throw;
 			}
 			
 			transform = new List<JsonTransform>();
@@ -431,6 +526,8 @@ namespace tkchJsonSerialize
 
 			initDict();
 			
+			_restoreResults = new List<RestoreResult>();
+			
 			foreach (var typePair in JsonComponentBase.ImplementedTypePairsFromJson)
 			{
 				var jsonType = typePair.Key;
@@ -449,6 +546,17 @@ namespace tkchJsonSerialize
 					}
 					break;
 				}
+			}
+
+			if (ReferenceEquals(component, null))
+			{
+				_restoreResults.Add(
+					new RestoreResult(
+						"未対応の Component",
+						name,
+						RestoreResult.ResultType.Warning
+					)
+				);
 			}
 		}
 
@@ -478,6 +586,11 @@ namespace tkchJsonSerialize
 			}
 
 			return (IList) o;
+		}
+		
+		public RestoreResult[] GetRestoreErrorList()
+		{
+			return _restoreResults.ToArray();
 		}
 	}
 }

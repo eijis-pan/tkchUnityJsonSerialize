@@ -632,6 +632,14 @@ namespace tkchJsonSerialize
 				{CheckResult.ResultType.Error, MessageType.Error}
 			};
 
+		private Dictionary<RestoreResult.ResultType, MessageType> RestoreResultTypeToMessageType
+			= new Dictionary<RestoreResult.ResultType, MessageType>()
+			{
+				{RestoreResult.ResultType.Info, MessageType.Info},
+				{RestoreResult.ResultType.Warning, MessageType.Warning},
+				{RestoreResult.ResultType.Error, MessageType.Error}
+			};
+		
 		/// <summary>
 		/// restore ウィンドウを表示
 		/// </summary>
@@ -781,9 +789,19 @@ namespace tkchJsonSerialize
 				}
 				else
 				{
+					int count = 0;
 					foreach (var helpBoxInfo in _helpBoxInfos)
 					{
 						EditorGUILayout.HelpBox(helpBoxInfo.message, helpBoxInfo.messageType, helpBoxInfo.wide);
+						count++;
+						if (5 <= count)
+						{
+							break;
+						}
+					}
+					if (count < _helpBoxInfos.Count)
+					{
+						EditorGUILayout.HelpBox(string.Format("and more infomation. ({0})", _helpBoxInfos.Count - count), MessageType.None);
 					}
 				}
 
@@ -805,6 +823,7 @@ namespace tkchJsonSerialize
 							if (0 == dlgRet)
 							{
 								restored = true;
+								exception = null;
 								try
 								{
 									_restoreAction(_jsonObject);
@@ -812,6 +831,14 @@ namespace tkchJsonSerialize
 								catch (Exception ex)
 								{
 									exception = ex;
+								}
+
+								var restoreResults = _jsonObject.GetRestoreErrorList();
+								foreach (var restoreResult in restoreResults)
+								{
+									_helpBoxInfos.Add(new HelpBoxInfo(
+										string.Format("{0} Item=[ {1} ]", restoreResult.Message, restoreResult.ItemName), 
+										RestoreResultTypeToMessageType[restoreResult.Type], true));
 								}
 							}
 						}
@@ -827,13 +854,13 @@ namespace tkchJsonSerialize
 			
 			if (restored)
 			{
-				if (null == exception)
-				{
-					EditorUtility.DisplayDialog ("json restore", "restore complete.", "OK");
-				}
-				else if (0 < _helpBoxInfos.Count)
+				if (0 < _helpBoxInfos.Count)
 				{
 					EditorUtility.DisplayDialog ("json restore", "restore finish with warning.", "OK");
+				}
+				else if (ReferenceEquals(exception, null))
+				{
+					EditorUtility.DisplayDialog ("json restore", "restore complete.", "OK");
 				}
 				else
 				{

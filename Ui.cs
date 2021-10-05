@@ -610,7 +610,7 @@ namespace tkchJsonSerialize
 		private const int TextPadding = 5;
 		
 		private Func<string, JsonRoot> _jsonAction = null;
-		private Action<JsonRoot> _restoreAction = null;
+		private Action<JsonRoot, int> _restoreAction = null;
 		private bool _errorOnCheck = false;
 		private Vector2 _scroll;
 		private bool _firstFocused = false;
@@ -618,6 +618,9 @@ namespace tkchJsonSerialize
 		private string _defaultText = string.Empty;
 		private JsonRoot _jsonObject = null;
 		private List<HelpBoxInfo> _helpBoxInfos = new List<HelpBoxInfo>(3);
+		private bool _helpBoxInfoLogged = false;
+		
+		private int _resotreSingleObjectIndex = 0;
 		
 		private bool _defaultStateChange = false;
 		//private bool _needDelayUpdate = false;
@@ -639,16 +642,49 @@ namespace tkchJsonSerialize
 				{RestoreResult.ResultType.Warning, MessageType.Warning},
 				{RestoreResult.ResultType.Error, MessageType.Error}
 			};
+
+		protected static JsonRoot JsonCallbackDefault(string text)
+		{
+			var jsonRoot = JsonUtility.FromJson<JsonRoot>(text);
+			return jsonRoot;
+		}
+
+		protected static void RestoreCallbackDefault(JsonRoot jsonRoot, int idx)
+		{
+			jsonRoot.JsonRestoreToSecne(idx);
+		}
+
+		/// <summary>
+		/// restore ウィンドウを表示
+		/// </summary>
+		public static void ShowRestoreWindow()
+		{
+			ShowRestoreWindow(
+				string.Empty, 
+				JsonCallbackDefault, 
+				RestoreCallbackDefault
+				);
+		}
+
+		/// <summary>
+		/// restore ウィンドウを表示
+		/// </summary>
+		public static void ShowRestoreWindow(string defaultText)
+		{
+			ShowRestoreWindow(
+				defaultText, 
+				JsonCallbackDefault, 
+				RestoreCallbackDefault
+			);
+		}
 		
 		/// <summary>
 		/// restore ウィンドウを表示
 		/// </summary>
-		/// <param name="component"></param>
-		/// <param name="callback"></param>
 		public static void ShowRestoreWindow( 
 			string defaultText,
 			Func<string, JsonRoot> jsonCallback,
-			Action<JsonRoot> restoreCallback 
+			Action<JsonRoot, int> restoreCallback 
 			)
 		{
 			var window = GetWindow(new GUIContent("json restore"));
@@ -712,6 +748,7 @@ namespace tkchJsonSerialize
 						if (scope.changed || _defaultStateChange)
 						{
 							_defaultStateChange = false;
+							_helpBoxInfoLogged = false;
 							if (!string.IsNullOrEmpty(_text))
 							{
 								bool jsonError = false;
@@ -792,12 +829,12 @@ namespace tkchJsonSerialize
 					int count = 0;
 					foreach (var helpBoxInfo in _helpBoxInfos)
 					{
-						EditorGUILayout.HelpBox(helpBoxInfo.message, helpBoxInfo.messageType, helpBoxInfo.wide);
 						count++;
-						if (5 <= count)
+						if (10 <= count)
 						{
 							break;
 						}
+						EditorGUILayout.HelpBox(helpBoxInfo.message, helpBoxInfo.messageType, helpBoxInfo.wide);
 					}
 					if (count < _helpBoxInfos.Count)
 					{
@@ -805,15 +842,55 @@ namespace tkchJsonSerialize
 					}
 				}
 
+				if(!_helpBoxInfoLogged)
+				{
+					var infoList = new List<String>(); 
+					var warnList = new List<String>(); 
+					var errorList = new List<String>();
+
+					foreach (var helpBoxInfo in _helpBoxInfos)
+					{
+						switch (helpBoxInfo.messageType)
+						{
+							case MessageType.Info:
+								infoList.Add(helpBoxInfo.message);
+								break;
+							case MessageType.Warning:
+								warnList.Add(helpBoxInfo.message);
+								break;
+							case MessageType.Error:
+								errorList.Add(helpBoxInfo.message);
+								break;
+						}
+					}
+
+					if (0 < infoList.Count)
+					{
+						Debug.Log(string.Join("\n", infoList));
+					}
+					if (0 < warnList.Count)
+					{
+						Debug.LogWarning(string.Join("\n", warnList));
+					}
+					if (0 < errorList.Count)
+					{
+						Debug.LogError(string.Join("\n", errorList));
+					}
+
+					_helpBoxInfoLogged = true;
+				}
+				
 				using (new EditorGUILayout.HorizontalScope())
 				{
-					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) || ReferenceEquals(_jsonObject, null) || _errorOnCheck))
+					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) ||
+					                                   ReferenceEquals(_jsonObject, null) || _errorOnCheck))
 					{
-						if (GUILayout.Button("Restore",GUILayout.Height(ButtonHeight)))
+						if (GUILayout.Button("Restore all", GUILayout.Height(ButtonHeight)))
 						{
 							_helpBoxInfos.Clear();
-								
-							int dlgRet = EditorUtility.DisplayDialogComplex (
+							_helpBoxInfoLogged = false;
+
+							int dlgRet = EditorUtility.DisplayDialogComplex(
 								"json restore",
 								"Hierarchy objects will override. are you sure ?",
 								"Go", // 0 ok
@@ -826,7 +903,7 @@ namespace tkchJsonSerialize
 								exception = null;
 								try
 								{
-									_restoreAction(_jsonObject);
+									_restoreAction(_jsonObject, -1);
 								}
 								catch (Exception ex)
 								{
@@ -837,9 +914,57 @@ namespace tkchJsonSerialize
 								foreach (var restoreResult in restoreResults)
 								{
 									_helpBoxInfos.Add(new HelpBoxInfo(
+										string.Format("{0} Item=[ {1} ]", restoreResult.Message,
+											restoreResult.ItemName),
+										RestoreResultTypeToMessageType[restoreResult.Type], true));
+								}
+								
+								Debug.Log(string.Join("\n", _jsonObject.traceLog));
+							}
+						}
+					}
+
+					var jsonGameObject = _jsonObject.jsonGameObjectByRootIndex(_resotreSingleObjectIndex);
+					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) || ReferenceEquals(_jsonObject, null) || _errorOnCheck || ReferenceEquals(jsonGameObject, null) ))
+					{
+						if (GUILayout.Button("Restore single", GUILayout.Height(ButtonHeight)))
+						{
+							_helpBoxInfos.Clear();
+							_helpBoxInfoLogged = false;
+
+							int dlgRet = EditorUtility.DisplayDialogComplex (
+								"json restore",
+								string.Format("Resotre Single Object [ index = {0} ],[ name = {1} ]. are you sure ?", _resotreSingleObjectIndex, jsonGameObject.name),
+								"Go", // 0 ok
+								"Cancel", // 1 cancel
+								"Reset"
+							);
+							if (0 == dlgRet)
+							{
+								restored = true;
+								exception = null;
+								try
+								{
+									_restoreAction(_jsonObject, _resotreSingleObjectIndex);
+								}
+								catch (Exception ex)
+								{
+									exception = ex;
+								}
+
+								var restoreResults = _jsonObject.GetRestoreErrorList(_resotreSingleObjectIndex);
+								foreach (var restoreResult in restoreResults)
+								{
+									_helpBoxInfos.Add(new HelpBoxInfo(
 										string.Format("{0} Item=[ {1} ]", restoreResult.Message, restoreResult.ItemName), 
 										RestoreResultTypeToMessageType[restoreResult.Type], true));
 								}
+
+								_resotreSingleObjectIndex++;
+							}
+							else if (1 != dlgRet)
+							{
+								_resotreSingleObjectIndex = 0;
 							}
 						}
 					}

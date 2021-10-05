@@ -53,6 +53,9 @@ namespace tkchJsonSerialize
 
 		private List<RestoreResult> _restoreResults = new List<RestoreResult>();
 		
+		[NonSerialized]
+		public List<string> traceLog = new List<string>();
+		
 		/*
 		public JsonRoot(List<JsonGameObject> t)
 		{
@@ -81,9 +84,10 @@ namespace tkchJsonSerialize
 		}
 		*/
 
-		public void JsonRestoreToSecne()
+		public void JsonRestoreToSecne(int idx)
 		{
 			_restoreResults = new List<RestoreResult>();
+			traceLog = new List<string>();
 			
 			var scene = SceneManager.GetActiveScene();
 
@@ -99,16 +103,24 @@ namespace tkchJsonSerialize
 					changed = true;
 				}
 				*/
-				
+
+				int idxOnRoot = 0;
 				//foreach (var value in instanceIdToGameObject.Values)
 				for (int i = 0; i < instanceIdList.Count && i < gameObjectList.Count; i++)
 				{
+					var instanceId = instanceIdList[i];
 					var jsonGameObject = gameObjectList[i];
 					if (0 != jsonGameObject.parentInstanceId)
 					{
 						continue;
 					}
+
+					if (0 <= idx && idx != idxOnRoot++)
+					{
+						continue;
+					}
 					
+					traceLog.Add(string.Format("resotre start id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 					var go = jsonGameObject.JsonRestoreObject();
 					if (ReferenceEquals(go, null))
 					{
@@ -119,6 +131,7 @@ namespace tkchJsonSerialize
 								RestoreResult.ResultType.Error
 								)
 							);
+						traceLog.Add(string.Format("resotre skip id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 						continue;
 					}
 					
@@ -126,10 +139,12 @@ namespace tkchJsonSerialize
 					jsonGameObject.RestoreComponents(go);
 					changed = true;
 
+					traceLog.Add(string.Format("resotre childs id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 					foreach (var childInstanceId in jsonGameObject.childInstanceIds)
 					{
-						createGameObjectByInstanceId(childInstanceId, go.transform, scene, jsonGameObject.assetReference.assetPath);
+						createGameObjectByInstanceId(childInstanceId, go.transform, scene, jsonGameObject.assetReference.assetPath, 1);
 					}
+					traceLog.Add(string.Format("resotre end id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 				}
 				
 			}
@@ -147,7 +162,7 @@ namespace tkchJsonSerialize
 			}
 		}
 
-		private void createGameObjectByInstanceId(int instanceId, Transform parentTr, Scene sc, string parentAssetPath)
+		private void createGameObjectByInstanceId(int instanceId, Transform parentTr, Scene sc, string parentAssetPath, int depth)
 		{
 			//var jsonGameObject = (JsonGameObject)instanceIdToGameObject[instanceId];
 
@@ -160,6 +175,7 @@ namespace tkchJsonSerialize
 			var jsonGameObject = gameObjectList[idx];
 			var assetPath = jsonGameObject.assetReference.assetPath;
 			GameObject go = null;
+			traceLog.Add(string.Format(new string('\t', depth) + "resotre start id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 			if (parentAssetPath == assetPath)
 			{
 				for (int i = 0; i < parentTr.childCount; i++)
@@ -167,7 +183,7 @@ namespace tkchJsonSerialize
 					var child = parentTr.GetChild(i);
 					if (child.name == jsonGameObject.name)
 					{
-						go = parentTr.gameObject;
+						go = child.gameObject;
 						break;
 					}
 				}
@@ -175,17 +191,33 @@ namespace tkchJsonSerialize
 			if (ReferenceEquals(go, null))
 			{
 				go = jsonGameObject.JsonRestoreObject();
-				
-				//SceneManager.MoveGameObjectToScene(go, sc);
-				go.transform.SetParent(parentTr);
+				if (ReferenceEquals(go, null))
+				{
+					_restoreResults.Add(
+						new RestoreResult(
+							"GameObject の復元に失敗",
+							jsonGameObject.path,
+							RestoreResult.ResultType.Error
+						)
+					);
+					traceLog.Add(string.Format(new string('\t', depth) + "resotre skip id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
+					return;
+				}
+				else
+				{
+					//SceneManager.MoveGameObjectToScene(go, sc);
+					go.transform.SetParent(parentTr);
+				}
 			}
-			
+
 			jsonGameObject.RestoreComponents(go);
 			
+			traceLog.Add(string.Format(new string('\t', depth) + "resotre childs id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 			foreach (var childInstanceId in jsonGameObject.childInstanceIds)
 			{
-				createGameObjectByInstanceId(childInstanceId, go.transform, sc, jsonGameObject.assetReference.assetPath);
+				createGameObjectByInstanceId(childInstanceId, go.transform, sc, jsonGameObject.assetReference.assetPath, depth + 1);
 			}
+			traceLog.Add(string.Format(new string('\t', depth) + "resotre end id:{0}, name [ {1} ]", instanceId, jsonGameObject.name));
 		}
 
 		public RestoreResult[] GetRestoreErrorList()
@@ -196,6 +228,43 @@ namespace tkchJsonSerialize
 			}
 			
 			return _restoreResults.ToArray();
+		}
+		
+		public RestoreResult[] GetRestoreErrorList(int rootIndex)
+		{
+			int idx = 0;
+			foreach(var child in gameObjectList)
+			{
+				if (0 == child.parentInstanceId)
+				{
+					if (rootIndex == idx)
+					{
+						_restoreResults.AddRange(child.GetRestoreErrorList());
+						break;
+					}
+					idx++;
+				}
+			}
+			
+			return _restoreResults.ToArray();
+		}
+
+		public JsonGameObject jsonGameObjectByRootIndex(int rootIndex)
+		{
+			int idx = 0;
+			foreach(var child in gameObjectList)
+			{
+				if (0 == child.parentInstanceId)
+				{
+					if (rootIndex == idx)
+					{
+						return child;
+					}
+					idx++;
+				}
+			}
+
+			return null;
 		}
 	}
 
@@ -307,7 +376,7 @@ namespace tkchJsonSerialize
 					_restoreResults.Add(
 						new RestoreResult(
 							"Asset を使った復元に失敗",
-							path,
+							assetReference.assetPath,
 							RestoreResult.ResultType.Error
 						)
 					);

@@ -573,20 +573,18 @@ namespace tkchJsonSerialize
 			object result = null;
 			if (assetPath.EndsWith(".prefab"))
 			{
-				var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
-				foreach (var asset in assets)
+				if (typeof(GameObject) == type)
 				{
-					if (asset.GetType() == type && asset.name == param)
-					{
-						result = asset;
-					}
+					var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+					var go = PrefabUtility.InstantiatePrefab(loadedAsset);
+					result = go;
 				}
-
-				if (ReferenceEquals(result, null))
+				else
 				{
 					throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応のType {1}", assetPath, type.Name));
 				}
-				else 
+
+				if (!ReferenceEquals(result, null))
 				{
 					ReferenceState = ReferenceStateEnum.Found;
 				}

@@ -573,18 +573,20 @@ namespace tkchJsonSerialize
 			object result = null;
 			if (assetPath.EndsWith(".prefab"))
 			{
-				if (typeof(GameObject) == type)
+				var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+				foreach (var asset in assets)
 				{
-					var loadedAsset = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-					var go = PrefabUtility.InstantiatePrefab(loadedAsset);
-					result = go;
+					if (asset.GetType() == type && asset.name == param)
+					{
+						result = asset;
+					}
 				}
-				else
+
+				if (ReferenceEquals(result, null))
 				{
 					throw new NotImplementedException(string.Format("{0} の FindAsset() 未対応のType {1}", assetPath, type.Name));
 				}
-
-				if (!ReferenceEquals(result, null))
+				else 
 				{
 					ReferenceState = ReferenceStateEnum.Found;
 				}
@@ -600,9 +602,15 @@ namespace tkchJsonSerialize
 				}
 				else if (typeof(Mesh) == type)
 				{
-					result = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
-					
-					// todo : mesh が複数の場合がある？
+					// mesh が複数の場合がある
+					var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+					foreach (var asset in assets)
+					{
+						if (asset.GetType() == type && asset.name == param)
+						{
+							result = asset;
+						}
+					}
 				}
 				else if (typeof(Avatar) == type)
 				{

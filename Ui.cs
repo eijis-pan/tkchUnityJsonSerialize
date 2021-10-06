@@ -924,7 +924,7 @@ namespace tkchJsonSerialize
 						}
 					}
 
-					var jsonGameObject = _jsonObject.jsonGameObjectByRootIndex(_resotreSingleObjectIndex);
+					var jsonGameObject = ReferenceEquals(_jsonObject, null) ? null : _jsonObject.jsonGameObjectByRootIndex(_resotreSingleObjectIndex);
 					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) || ReferenceEquals(_jsonObject, null) || _errorOnCheck || ReferenceEquals(jsonGameObject, null) ))
 					{
 						if (GUILayout.Button("Restore single", GUILayout.Height(ButtonHeight)))

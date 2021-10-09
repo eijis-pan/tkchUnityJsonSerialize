@@ -620,7 +620,8 @@ namespace tkchJsonSerialize
 		private List<HelpBoxInfo> _helpBoxInfos = new List<HelpBoxInfo>(3);
 		private bool _helpBoxInfoLogged = false;
 		
-		private int _resotreSingleObjectIndex = 0;
+		private bool _singleMode = false;
+		private Vector2 _scroll2;
 		
 		private bool _defaultStateChange = false;
 		//private bool _needDelayUpdate = false;
@@ -733,86 +734,141 @@ namespace tkchJsonSerialize
 
 			using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
 			{
-				RectOffset textPaddingRect = new RectOffset(TextPadding, TextPadding, TextPadding, TextPadding);
-				using (var scrollView = new EditorGUILayout.ScrollViewScope(_scroll))
+				if (_singleMode)
 				{
-					_scroll = scrollView.scrollPosition;
-					
-					GUI.SetNextControlName("TextField");
-					using (var scope = new EditorGUI.ChangeCheckScope())
+					using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
 					{
-						var guiStyle = GUI.skin.textArea;
-						guiStyle.padding = textPaddingRect;
-						guiStyle.wordWrap = true;
-						_text = EditorGUILayout.TextArea(_text, guiStyle,GUILayout.ExpandHeight(true));
-						if (scope.changed || _defaultStateChange)
+						using (var scrollView = new EditorGUILayout.ScrollViewScope(_scroll2))
 						{
-							_defaultStateChange = false;
-							_helpBoxInfoLogged = false;
-							if (!string.IsNullOrEmpty(_text))
+							_scroll2 = scrollView.scrollPosition;
+							var list = _jsonObject.jsonGameObjectOnRoot();
+							for(int i = 0; i < list.Length; i++)
 							{
-								bool jsonError = false;
-								_helpBoxInfos.Clear();
-								_jsonObject = null;
-								_errorOnCheck = false;
-								try
+								var child = list[i];
+								if (GUILayout.Button(child.name))
 								{
-									_jsonObject = _jsonAction(_text);
+									_helpBoxInfos.Clear();
+									_helpBoxInfoLogged = false;
+
+									int dlgRet = EditorUtility.DisplayDialogComplex (
+										"json restore",
+										string.Format("Resotre Single Object [ index = {0} ],[ name = {1} ]. are you sure ?", i, child.name),
+										"Go", // 0 ok
+										"Cancel", // 1 cancel
+										null
+									);
+									if (0 == dlgRet)
+									{
+										restored = true;
+										exception = null;
+										try
+										{
+											_restoreAction(_jsonObject, i);
+										}
+										catch (Exception ex)
+										{
+											exception = ex;
+										}
+
+										var restoreResults = _jsonObject.GetRestoreErrorList(i);
+										foreach (var restoreResult in restoreResults)
+										{
+											_helpBoxInfos.Add(new HelpBoxInfo(
+												string.Format("{0} Item=[ {1} ]", restoreResult.Message, restoreResult.ItemName), 
+												RestoreResultTypeToMessageType[restoreResult.Type], true));
+										}
+									}
 								}
-								catch (NotImplementedException ex)
+							}
+						}
+					}
+				}
+				else
+				{
+					RectOffset textPaddingRect = new RectOffset(TextPadding, TextPadding, TextPadding, TextPadding);
+					using (var scrollView = new EditorGUILayout.ScrollViewScope(_scroll))
+					{
+						_scroll = scrollView.scrollPosition;
+
+						GUI.SetNextControlName("TextField");
+						using (var scope = new EditorGUI.ChangeCheckScope())
+						{
+							var guiStyle = GUI.skin.textArea;
+							guiStyle.padding = textPaddingRect;
+							guiStyle.wordWrap = true;
+							_text = EditorGUILayout.TextArea(_text, guiStyle, GUILayout.ExpandHeight(true));
+							if (scope.changed || _defaultStateChange)
+							{
+								_defaultStateChange = false;
+								_helpBoxInfoLogged = false;
+								if (!string.IsNullOrEmpty(_text))
 								{
-									jsonError = true;
-									_helpBoxInfos.Add(new HelpBoxInfo("Not implement component type.", MessageType.Error, true));
-									//Debug.Log(string.Format("Invalid json format.   {0}", ex));
-								}
-								catch (Exception ex)
-								{
-									jsonError = true;
-									_helpBoxInfos.Add(new HelpBoxInfo("Invalid json format.", MessageType.Error, true));
-									//Debug.Log(string.Format("Invalid json format.   {0}", ex));
-								}
-								
-								if (!jsonError)
-								{
-									if (null == _jsonObject)
+									bool jsonError = false;
+									_helpBoxInfos.Clear();
+									_jsonObject = null;
+									_errorOnCheck = false;
+									try
+									{
+										_jsonObject = _jsonAction(_text);
+									}
+									catch (NotImplementedException ex)
 									{
 										jsonError = true;
-										_helpBoxInfos.Add(new HelpBoxInfo("Empty json object.", MessageType.Error, true));
+										_helpBoxInfos.Add(new HelpBoxInfo("Not implement component type.",
+											MessageType.Error, true));
+										//Debug.Log(string.Format("Invalid json format.   {0}", ex));
 									}
-									else
+									catch (Exception ex)
 									{
-										/*
-										// 参照の見つからないものがあれば警告を表示する
-										if (_jsonObject.IsReferenceNotFound)
+										jsonError = true;
+										_helpBoxInfos.Add(new HelpBoxInfo("Invalid json format.", MessageType.Error,
+											true));
+										//Debug.Log(string.Format("Invalid json format.   {0}", ex));
+									}
+
+									if (!jsonError)
+									{
+										if (null == _jsonObject)
 										{
-											_helpBoxInfos.Add(new HelpBoxInfo("Reference not found.", MessageType.Warning, true));
-										}
-										
-										// インスペクタのリロード（再表示が必要か）
-										if (_jsonObject.NeedInspectorReload)
-										{
-											// 今のところ Cloth のエディタに更新が必要なケースのみ
-											_needDelayUpdate = true;
+											jsonError = true;
+											_helpBoxInfos.Add(new HelpBoxInfo("Empty json object.", MessageType.Error,
+												true));
 										}
 										else
 										{
-											_needDelayUpdate = false;
-										}
-
-										// その他の整合成チェック
-										var checkResults = _jsonObject.AfterCheckFromJson(_component);
-										foreach (var checkResult in checkResults)
-										{
-											_helpBoxInfos.Add(new HelpBoxInfo(
-												string.Format("{0} Item=[ {1} ]", checkResult.Message, checkResult.ItemName), 
-												CheckResultTypeToMessageType[checkResult.Type], true));
-
-											if (CheckResult.ResultType.Error == checkResult.Type)
+											/*
+											// 参照の見つからないものがあれば警告を表示する
+											if (_jsonObject.IsReferenceNotFound)
 											{
-												_errorOnCheck = true;
+												_helpBoxInfos.Add(new HelpBoxInfo("Reference not found.", MessageType.Warning, true));
 											}
+											
+											// インスペクタのリロード（再表示が必要か）
+											if (_jsonObject.NeedInspectorReload)
+											{
+												// 今のところ Cloth のエディタに更新が必要なケースのみ
+												_needDelayUpdate = true;
+											}
+											else
+											{
+												_needDelayUpdate = false;
+											}
+
+											// その他の整合成チェック
+											var checkResults = _jsonObject.AfterCheckFromJson(_component);
+											foreach (var checkResult in checkResults)
+											{
+												_helpBoxInfos.Add(new HelpBoxInfo(
+													string.Format("{0} Item=[ {1} ]", checkResult.Message, checkResult.ItemName), 
+													CheckResultTypeToMessageType[checkResult.Type], true));
+
+												if (CheckResult.ResultType.Error == checkResult.Type)
+												{
+													_errorOnCheck = true;
+												}
+											}
+											*/
 										}
-										*/
 									}
 								}
 							}
@@ -879,7 +935,7 @@ namespace tkchJsonSerialize
 
 					_helpBoxInfoLogged = true;
 				}
-				
+
 				using (new EditorGUILayout.HorizontalScope())
 				{
 					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) ||
@@ -924,48 +980,11 @@ namespace tkchJsonSerialize
 						}
 					}
 
-					var jsonGameObject = ReferenceEquals(_jsonObject, null) ? null : _jsonObject.jsonGameObjectByRootIndex(_resotreSingleObjectIndex);
-					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) || ReferenceEquals(_jsonObject, null) || _errorOnCheck || ReferenceEquals(jsonGameObject, null) ))
+					using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_text) || ReferenceEquals(_jsonObject, null) || _errorOnCheck ))
 					{
-						if (GUILayout.Button("Restore single", GUILayout.Height(ButtonHeight)))
+						if (GUILayout.Button(_singleMode ? "Text mode" : "Single mode", GUILayout.Height(ButtonHeight)))
 						{
-							_helpBoxInfos.Clear();
-							_helpBoxInfoLogged = false;
-
-							int dlgRet = EditorUtility.DisplayDialogComplex (
-								"json restore",
-								string.Format("Resotre Single Object [ index = {0} ],[ name = {1} ]. are you sure ?", _resotreSingleObjectIndex, jsonGameObject.name),
-								"Go", // 0 ok
-								"Cancel", // 1 cancel
-								"Reset"
-							);
-							if (0 == dlgRet)
-							{
-								restored = true;
-								exception = null;
-								try
-								{
-									_restoreAction(_jsonObject, _resotreSingleObjectIndex);
-								}
-								catch (Exception ex)
-								{
-									exception = ex;
-								}
-
-								var restoreResults = _jsonObject.GetRestoreErrorList(_resotreSingleObjectIndex);
-								foreach (var restoreResult in restoreResults)
-								{
-									_helpBoxInfos.Add(new HelpBoxInfo(
-										string.Format("{0} Item=[ {1} ]", restoreResult.Message, restoreResult.ItemName), 
-										RestoreResultTypeToMessageType[restoreResult.Type], true));
-								}
-
-								_resotreSingleObjectIndex++;
-							}
-							else if (1 != dlgRet)
-							{
-								_resotreSingleObjectIndex = 0;
-							}
+							_singleMode = !_singleMode;
 						}
 					}
 					if (GUILayout.Button("Close",GUILayout.Height(ButtonHeight)))

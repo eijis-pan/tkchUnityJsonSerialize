@@ -266,6 +266,19 @@ namespace tkchJsonSerialize
 
 			return null;
 		}
+		
+		public JsonGameObject[] jsonGameObjectOnRoot()
+		{
+			var list = new List<JsonGameObject>();
+			foreach(var child in gameObjectList)
+			{
+				if (0 == child.parentInstanceId)
+				{
+					list.Add(child);
+				}
+			}
+			return list.ToArray();
+		}
 	}
 
 	

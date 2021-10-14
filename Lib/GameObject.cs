@@ -518,6 +518,8 @@ namespace tkchJsonSerialize
 		public List<JsonSphereCollider> sphereCollider;
 		public List<JsonAnimator> animator;
 		public List<JsonCloth> cloth;
+		public List<JsonRectTransform> rectTransform;
+		public List<JsonCanvas> canvas;
 
 		private Dictionary<Type, object> _componentDict;
 		
@@ -555,6 +557,8 @@ namespace tkchJsonSerialize
 			sphereCollider = new List<JsonSphereCollider>();
 			animator = new List<JsonAnimator>();
 			cloth = new List<JsonCloth>();
+			rectTransform = new List<JsonRectTransform>();
+			canvas = new List<JsonCanvas>();
 		}
 
 		private void initDict()
@@ -573,6 +577,8 @@ namespace tkchJsonSerialize
 			_componentDict[componentTypes[6]] = sphereCollider;
 			_componentDict[componentTypes[7]] = animator;
 			_componentDict[componentTypes[8]] = cloth;
+			_componentDict[componentTypes[9]] = rectTransform;
+			_componentDict[componentTypes[10]] = canvas;
 		}
 		
 		public void OnBeforeSerialize()

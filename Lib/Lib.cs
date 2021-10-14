@@ -248,6 +248,60 @@ namespace tkchJsonSerialize
 	}
 
 	[Serializable]
+	public class JsonCameraReference : ISerializationCallbackReceiver
+	{
+		// 別の場所に実体があるので参照先の情報のみ
+		public JsonReference reference;
+
+		// 参照先
+		private Camera _camera = null;
+		
+		public JsonCameraReference(Camera camera)
+		{
+			if (!ReferenceEquals(camera, null))
+			{
+				reference = new JsonReference(camera);
+				_camera = camera;
+			}
+		}
+		
+		public JsonReference.ReferenceStateEnum ReferenceState
+		{
+			get
+			{
+				if (null != reference)
+				{
+					return reference.ReferenceState;
+				}
+				
+				return JsonReference.ReferenceStateEnum.Unnecessary;
+			}
+		}
+		
+		public Camera value
+		{
+			get
+			{
+				return _camera;
+			}
+		}
+
+		public void OnBeforeSerialize()
+		{
+			// nop
+		}
+
+		public void OnAfterDeserialize()
+		{
+			// 参照情報なので実体は復元しない
+			if (null != reference)
+			{
+				_camera = (Camera)reference.FindComponent();
+			}
+		}
+	}
+	
+	[Serializable]
 	public class JsonCapsuleColliderReference : ISerializationCallbackReceiver
 	{
 		// 別の場所に実体があるので参照先の情報のみ

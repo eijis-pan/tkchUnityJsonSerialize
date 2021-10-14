@@ -86,7 +86,9 @@ namespace tkchJsonSerialize
 			{ typeof(JsonBoxCollider), typeof(BoxCollider) },
 			{ typeof(JsonSphereCollider), typeof(SphereCollider) },
 			{ typeof(JsonAnimator), typeof(Animator) },
-			{ typeof(JsonCloth), typeof(Cloth) }
+			{ typeof(JsonCloth), typeof(Cloth) },
+			{ typeof(JsonRectTransform), typeof(RectTransform) },
+			{ typeof(JsonCanvas), typeof(Canvas) }
 		};
 		
 		public virtual float Version => throw new NotImplementedException();

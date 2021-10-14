@@ -11,6 +11,7 @@ namespace tkchJsonSerialize
 	{
 		/// <summary>
 		/// Transform の情報を json 形式で出力
+		/// （RectTransformも兼ねる）
 		/// </summary>
 		/// <param name="command">Command.</param>
 		[MenuItem("CONTEXT/Transform/json_dump")]
@@ -30,6 +31,7 @@ namespace tkchJsonSerialize
 		
 		/// <summary>
 		/// json データから Transform の情報をリストア
+		/// （RectTransformも兼ねる）
 		/// </summary>
 		/// <param name="command">Command.</param>
 		[MenuItem("CONTEXT/Transform/json_restore")]
